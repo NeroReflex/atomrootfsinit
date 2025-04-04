@@ -7,7 +7,7 @@ const SYS_PIVOT_ROOT: libc::c_long = 41;
 #[cfg(target_arch = "x86_64")]
 const SYS_PIVOT_ROOT: libc::c_long = 155;
 
-pub fn switch_root(new_root: &str, put_old: &str) -> Result<(), libc::c_int> {
+pub fn pivot_root(new_root: &str, put_old: &str) -> Result<(), libc::c_int> {
     unsafe {
         /*
          * On success, zero is returned.  On error, -1 is returned, and errno

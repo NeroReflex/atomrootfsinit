@@ -5,7 +5,7 @@ extern crate libc;
 pub mod change_dir;
 pub mod config;
 pub mod mount;
-pub mod pivot_root;
+pub mod switch_root;
 
 pub const SYSROOT: &str = "/sysroot\0";
 pub const PUT_OLD: &str = "/sysroot/mnt\0";

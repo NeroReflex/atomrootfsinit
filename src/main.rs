@@ -1,8 +1,9 @@
 extern crate libc;
 
 use atombutter::{
+    change_dir::chdir,
     mount::{MountFlag, Mountpoint, MountpointFlags},
-    pivot_root::switch_root,
+    switch_root::{execute, pivot_root},
 };
 
 fn main() {
@@ -13,17 +14,31 @@ fn main() {
      *
      * https://bugzilla.redhat.com/show_bug.cgi?id=847418
      */
-    let priv_root_mountpoint = Mountpoint::new(
+    let priv_root_mountpoint = match Mountpoint::new(
         None,
         SLASH,
         None,
         MountpointFlags::new(&[MountFlag::Recursive, MountFlag::Private]),
-    );
-    match priv_root_mountpoint {
-        Ok(_) => match switch_root(atombutter::SYSROOT, atombutter::PUT_OLD) {
-            Ok(_) => match atombutter::change_dir::change_dir(SLASH) {
-                Ok(_) => match atombutter::pivot_root::execute(atombutter::INIT) {
-                    Ok(_) => { /* execute calls execve that replaces this program with the specified one */
+    ) {
+        Ok(mount) => mount,
+        Err(err) => {
+            eprintln!("Failed to create the mount object: {err}");
+            // If we ends up here let the user know about that as this shouldn't happen
+            loop {
+                unsafe {
+                    libc::sleep(1);
+                }
+            }
+        }
+    };
+
+    match priv_root_mountpoint.mount() {
+        Ok(_) => match pivot_root(atombutter::SYSROOT, atombutter::PUT_OLD) {
+            Ok(_) => match chdir(SLASH) {
+                Ok(_) => match execute(atombutter::INIT) {
+                    Ok(_) => {
+                        /* execute calls execve that replaces this program with the specified one */
+                        unreachable!()
                     }
                     Err(err) => eprintln!("Failed to execve the init program: {err}"),
                 },

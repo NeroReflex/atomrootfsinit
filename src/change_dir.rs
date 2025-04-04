@@ -1,4 +1,4 @@
-pub fn change_dir(path: &str) -> Result<(), libc::c_int> {
+pub fn chdir(path: &str) -> Result<(), libc::c_int> {
     unsafe {
         /*
          * On success, zero is returned.  On error, -1 is returned, and errno
