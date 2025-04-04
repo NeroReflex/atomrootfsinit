@@ -14,45 +14,30 @@ fn main() {
      *
      * https://bugzilla.redhat.com/show_bug.cgi?id=847418
      */
-    let priv_root_mountpoint = match Mountpoint::new(
+    let priv_root_mountpoint = Mountpoint::new(
         None,
         SLASH,
         None,
         MountpointFlags::new(&[MountFlag::Recursive, MountFlag::Private]),
-    ) {
-        Ok(mount) => mount,
-        Err(err) => {
-            eprintln!("Failed to create the mount object: {err}");
-            // If we ends up here let the user know about that as this shouldn't happen
-            loop {
-                unsafe {
-                    libc::sleep(1);
-                }
-            }
-        }
-    };
+    ).unwrap_or_else(|err| {
+        eprintln!("Failed to create the mount object: {err}");
+        loop { unsafe { libc::sleep(1); } }
+    });
 
-    match priv_root_mountpoint.mount() {
-        Ok(_) => match pivot_root(atombutter::SYSROOT, atombutter::PUT_OLD) {
-            Ok(_) => match chdir(SLASH) {
-                Ok(_) => match execute(atombutter::INIT) {
-                    Ok(_) => {
-                        /* execute calls execve that replaces this program with the specified one */
-                        unreachable!()
-                    }
-                    Err(err) => eprintln!("Failed to execve the init program: {err}"),
-                },
-                Err(err) => eprintln!("Failed to chdir to the new rootfs: {err}"),
-            },
-            Err(err) => eprintln!("Failed to pivot root to /sysroot: {err}"),
-        },
-        Err(err) => eprintln!("Failed to remount / as private: {err}"),
+    if let Err(err) = priv_root_mountpoint.mount() {
+        eprintln!("Failed to remount / as private: {err}");
+    } else if let Err(err) = pivot_root(atombutter::SYSROOT, atombutter::PUT_OLD) {
+        eprintln!("Failed to pivot root to /sysroot: {err}");
+    } else if let Err(err) = chdir(SLASH) {
+        eprintln!("Failed to chdir to the new rootfs: {err}");
+    } else if let Err(err) = execute(atombutter::INIT) {
+        eprintln!("Failed to execve the init program: {err}");
+    } else {
+        // This point should never be reached as execute calls execve
+        // that replaces the current program with the specified one.
+        unreachable!();
     }
 
     // If we ends up here let the user know about that as this shouldn't happen
-    loop {
-        unsafe {
-            libc::sleep(1);
-        }
-    }
+    loop { unsafe { libc::sleep(1); } }
 }
