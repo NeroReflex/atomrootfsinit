@@ -61,7 +61,7 @@ jobs:
         . $HOME/.cargo/env
         export PATH="$HOME/.cargo/bin:$PATH"
         cargo install cargo-deb
-        make deb
+        cargo deb
     - name: Move debs
       run: |
         mv target/debian/*.deb .
