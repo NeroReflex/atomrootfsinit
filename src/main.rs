@@ -1,3 +1,5 @@
+#![no_main]
+
 extern crate libc;
 
 use atombutter::{
@@ -6,6 +8,7 @@ use atombutter::{
     switch_root::{execute, pivot_root},
 };
 
+#[no_mangle]
 fn main() {
     println!("Starting AtomButter...");
 
