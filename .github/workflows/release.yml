@@ -89,7 +89,7 @@ jobs:
       - name: Make release
         uses: softprops/action-gh-release@v2
         with:
-          name: login-ng v${{ env.RELEASE_VERSION }}
+          name: AtomButter v${{ env.RELEASE_VERSION }}
           token: ${{ secrets.GITHUB_TOKEN }}
           draft: false
           prerelease: true

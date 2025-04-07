@@ -11,8 +11,8 @@ sys-mount = { version = "^3.0", features = [] }
 [package.metadata.deb]
 license-file = ["LICENSE.md", "4"]
 extended-description = """\
-A command-line utility to login into a user accounts: \
-supports either greetd and pam."""
+An init program to mount rootfs before transferring process to \
+systemd or any other deamon."""
 depends = "$auto"
 section = "utility"
 priority = "optional"
