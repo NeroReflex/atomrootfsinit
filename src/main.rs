@@ -7,7 +7,7 @@ use atombutter::{
 };
 
 fn main() {
-    const SLASH: &str = "/\0";
+    const SLASH: &str = "/";
 
     /* Work-around for kernel design: the kernel refuses MS_MOVE if any file systems are mounted
      * MS_SHARED. Hence remount them MS_PRIVATE here as a work-around.
@@ -19,9 +19,14 @@ fn main() {
         SLASH,
         None,
         MountpointFlags::new(&[MountFlag::Recursive, MountFlag::Private]),
-    ).unwrap_or_else(|err| {
+    )
+    .unwrap_or_else(|err| {
         eprintln!("Failed to create the mount object: {err}");
-        loop { unsafe { libc::sleep(1); } }
+        loop {
+            unsafe {
+                libc::sleep(1);
+            }
+        }
     });
 
     if let Err(err) = priv_root_mountpoint.mount() {
@@ -39,5 +44,9 @@ fn main() {
     }
 
     // If we ends up here let the user know about that as this shouldn't happen
-    loop { unsafe { libc::sleep(1); } }
+    loop {
+        unsafe {
+            libc::sleep(1);
+        }
+    }
 }

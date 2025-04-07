@@ -7,10 +7,10 @@ pub mod config;
 pub mod mount;
 pub mod switch_root;
 
-pub const SYSROOT: &str = "/sysroot\0";
-pub const PUT_OLD: &str = "/sysroot/mnt\0";
+pub const SYSROOT: &str = "/sysroot";
+pub const PUT_OLD: &str = "/sysroot/mnt";
 
-pub const INIT: &str = "/usr/lib/systemd/systemd\0";
+pub const INIT: &str = "/usr/lib/systemd/systemd";
 
 pub struct CStr {
     alloc_sz: usize,
@@ -36,6 +36,11 @@ impl CStr {
 
         if data == core::ptr::null_mut() {
             return Err(libc::ENOMEM);
+        }
+
+        unsafe {
+            libc::memset(data as *mut libc::c_void, 0, alloc_sz);
+            let _ = libc::memcpy(data as *mut libc::c_void, str.as_ptr() as *const libc::c_void, true_str_len);
         }
 
         Ok(Self { alloc_sz, data })
