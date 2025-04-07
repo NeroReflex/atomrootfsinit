@@ -10,7 +10,7 @@ pub mod switch_root;
 pub const SYSROOT: &str = "/sysroot\0";
 pub const PUT_OLD: &str = "/sysroot/mnt\0";
 
-pub const INIT: &str = "/usr/bin/init\0";
+pub const INIT: &str = "/usr/lib/systemd/systemd\0";
 
 pub struct CStr {
     alloc_sz: usize,
