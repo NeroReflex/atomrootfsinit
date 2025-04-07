@@ -12,6 +12,15 @@ use atombutter::{
 fn main() {
     println!("Starting AtomButter...");
 
+    // Check if the current process is PID 1
+    unsafe {
+        let pid = libc::getpid();
+        if pid != 1 {
+            eprintln!("Current process is not PID1: {pid}");
+            libc::exit(1);
+        }
+    }
+
     const SLASH: &str = "/";
 
     /* Work-around for kernel design: the kernel refuses MS_MOVE if any file systems are mounted
