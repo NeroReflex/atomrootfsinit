@@ -9,7 +9,8 @@ use atombutter::{
 };
 
 #[no_mangle]
-fn main() {
+#[inline(never)]
+pub extern "C" fn main() {
     // Check if the current process is PID 1
     unsafe {
         let pid = libc::getpid();
