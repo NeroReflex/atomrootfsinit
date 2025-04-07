@@ -6,7 +6,6 @@ edition = "2021"
 
 [dependencies]
 libc = { version = "^0.2", features = [] }
-sys-mount = { version = "^3.0", features = [] }
 
 [package.metadata.deb]
 license-file = ["LICENSE.md", "4"]

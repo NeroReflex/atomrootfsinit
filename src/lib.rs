@@ -40,7 +40,11 @@ impl CStr {
 
         unsafe {
             libc::memset(data as *mut libc::c_void, 0, alloc_sz);
-            let _ = libc::memcpy(data as *mut libc::c_void, str.as_ptr() as *const libc::c_void, true_str_len);
+            let _ = libc::memcpy(
+                data as *mut libc::c_void,
+                str.as_ptr() as *const libc::c_void,
+                true_str_len,
+            );
         }
 
         Ok(Self { alloc_sz, data })

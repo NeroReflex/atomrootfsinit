@@ -10,14 +10,14 @@ use atombutter::{
 
 #[no_mangle]
 fn main() {
-    println!("Starting AtomButter...");
-
     // Check if the current process is PID 1
     unsafe {
         let pid = libc::getpid();
+        libc::printf(b"Starting AtomButter as PID %d...\n\0".as_ptr() as *const libc::c_char, pid as libc::c_int);
+
         if pid != 1 {
-            eprintln!("Current process is not PID1: {pid}");
-            libc::exit(1);
+            //eprintln!("Current process is not PID1: {pid}");
+            //libc::exit(1);
         }
     }
 
@@ -35,21 +35,29 @@ fn main() {
         MountpointFlags::new(&[MountFlag::Recursive, MountFlag::Private]),
     )
     .unwrap_or_else(|err| {
-        eprintln!("Failed to create the mount object: {err}");
         unsafe {
+            libc::printf(b"Failed to create the mount object: %d\n\0".as_ptr() as *const libc::c_char, err as libc::c_int);
             libc::sleep(600);
             libc::exit(1);
         }
     });
 
     if let Err(err) = priv_root_mountpoint.mount() {
-        eprintln!("Failed to remount / as private: {err}");
+        unsafe {
+            libc::printf(b"Failed to remount / as private: %d\n\0".as_ptr() as *const libc::c_char, err as libc::c_int);
+        }
     } else if let Err(err) = pivot_root(atombutter::SYSROOT, atombutter::PUT_OLD) {
-        eprintln!("Failed to pivot root to /sysroot: {err}");
+        unsafe {
+            libc::printf(b"Failed to pivot root to /sysroot: %d\n\0".as_ptr() as *const libc::c_char, err as libc::c_int);
+        }
     } else if let Err(err) = chdir(SLASH) {
-        eprintln!("Failed to chdir to the new rootfs: {err}");
+        unsafe {
+            libc::printf(b"Failed to chdir to the new rootfs: %d\n\0".as_ptr() as *const libc::c_char, err as libc::c_int);
+        }
     } else if let Err(err) = execute(atombutter::INIT) {
-        eprintln!("Failed to execve the init program: {err}");
+        unsafe {
+            libc::printf(b"Failed to execve the init program: %d\n\0".as_ptr() as *const libc::c_char, err as libc::c_int);
+        }
     } else {
         // This point should never be reached as execute calls execve
         // that replaces the current program with the specified one.
