@@ -7,6 +7,8 @@ use atombutter::{
 };
 
 fn main() {
+    println!("Starting AtomButter...");
+
     const SLASH: &str = "/";
 
     /* Work-around for kernel design: the kernel refuses MS_MOVE if any file systems are mounted
@@ -22,10 +24,9 @@ fn main() {
     )
     .unwrap_or_else(|err| {
         eprintln!("Failed to create the mount object: {err}");
-        loop {
-            unsafe {
-                libc::sleep(1);
-            }
+        unsafe {
+            libc::sleep(600);
+            libc::exit(1);
         }
     });
 
@@ -44,9 +45,8 @@ fn main() {
     }
 
     // If we ends up here let the user know about that as this shouldn't happen
-    loop {
-        unsafe {
-            libc::sleep(1);
-        }
+    unsafe {
+        libc::sleep(800);
+        libc::exit(1);
     }
 }
