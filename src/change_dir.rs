@@ -1,5 +1,7 @@
+use crate::string::CStr;
+
 pub fn chdir(path: &str) -> Result<(), libc::c_int> {
-    let path_str = crate::CStr::new(path)?;
+    let path_str = CStr::new(path)?;
 
     unsafe {
         /*

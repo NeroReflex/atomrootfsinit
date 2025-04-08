@@ -1,3 +1,5 @@
+use crate::string::CStr;
+
 #[cfg(target_arch = "arm")]
 const SYS_PIVOT_ROOT: libc::c_long = 218;
 
@@ -8,8 +10,8 @@ const SYS_PIVOT_ROOT: libc::c_long = 41;
 const SYS_PIVOT_ROOT: libc::c_long = 155;
 
 pub fn pivot_root(new_root: &str, put_old: &str) -> Result<(), libc::c_int> {
-    let new_root_str = crate::CStr::new(new_root)?;
-    let put_old_str = crate::CStr::new(put_old)?;
+    let new_root_str = CStr::new(new_root)?;
+    let put_old_str = CStr::new(put_old)?;
 
     unsafe {
         /*
@@ -25,7 +27,7 @@ pub fn pivot_root(new_root: &str, put_old: &str) -> Result<(), libc::c_int> {
 }
 
 pub fn execute(program: &str) -> Result<(), libc::c_int> {
-    let program_str = crate::CStr::new(program)?;
+    let program_str = CStr::new(program)?;
 
     let argv: [*const libc::c_char; 2] = [program_str.inner(), core::ptr::null()];
 

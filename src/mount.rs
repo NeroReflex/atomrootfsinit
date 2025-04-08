@@ -1,6 +1,6 @@
 use core::ptr;
 
-use crate::CStr;
+use crate::string::CStr;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum MountFlag {
@@ -178,6 +178,7 @@ impl Mountpoint {
         };
 
         unsafe {
+            // Example: mount("overlay", "/merged", "overlay", 0, "lowerdir=/etc,upperdir=/upper,wo"...)
             if libc::mount(
                 src,
                 self.target.inner(),
@@ -192,10 +193,16 @@ impl Mountpoint {
 
         Ok(())
     }
+
+    pub fn target(&self) -> &str {
+        let slice = unsafe { core::slice::from_raw_parts(self.target.inner() as *const u8, self.target.strlen()) };
+
+        unsafe { core::str::from_utf8_unchecked(slice) }
+    }
 }
 
 pub fn direct_detach(target: &str) -> Result<(), libc::c_int> {
-    let target_str = crate::CStr::new(target)?;
+    let target_str = CStr::new(target)?;
 
     unsafe {
         /*

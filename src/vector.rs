@@ -58,7 +58,65 @@ where
     }
 }
 
+pub struct IntoVecIter<T> {
+    vec: Vec<T>,
+    index: usize,
+}
+
+impl<T> Iterator for IntoVecIter<T> {
+    type Item = T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.index < self.vec.length {
+            let value = unsafe {
+                // Read the value at the current index
+                ptr::read(self.vec.ptr.add(self.index))
+            };
+            self.index += 1;
+            Some(value)
+        } else {
+            None
+        }
+    }
+}
+
+pub struct VecIter<'a, T> {
+    vec: &'a Vec<T>,
+    index: usize,
+}
+
+impl<'a, T> Iterator for VecIter<'a, T> {
+    type Item = &'a T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.index < self.vec.length {
+            let value = unsafe {
+                // Get a reference to the value at the current index
+                &*self.vec.ptr.add(self.index)
+            };
+            self.index += 1;
+            Some(value)
+        } else {
+            None
+        }
+    }
+}
+
 impl<T> Vec<T> {
+    pub fn iter(&self) -> VecIter<T> {
+        VecIter {
+            vec: self,
+            index: 0,
+        }
+    }
+
+    pub fn into_iter(self) -> IntoVecIter<T> {
+        IntoVecIter {
+            vec: self,
+            index: 0,
+        }
+    }
+
     pub fn new(elements: &[T]) -> Result<Vec<T>, libc::c_int> {
         let length = elements.len();
         let ptr = unsafe { libc::malloc(length * mem::size_of::<T>()) as *mut T };

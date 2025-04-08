@@ -32,6 +32,15 @@ fn main() {
         libc::exit(1);
     });
 
+    if let Err(err) = priv_root_mountpoint.mount() {
+        unsafe {
+            libc::printf(
+                b"Failed to remount / as private: %d\n\0".as_ptr() as *const libc::c_char,
+                err as libc::c_int,
+            );
+        }
+    }
+
     let config = Config::new("/etc/bstab").unwrap_or_else(|err| unsafe {
         libc::printf(
             b"Failed to create the mount object: %d\n\0".as_ptr() as *const libc::c_char,
@@ -41,14 +50,21 @@ fn main() {
         libc::exit(1);
     });
 
-    if let Err(err) = priv_root_mountpoint.mount() {
-        unsafe {
-            libc::printf(
-                b"Failed to remount / as private: %d\n\0".as_ptr() as *const libc::c_char,
-                err as libc::c_int,
-            );
+    for mount in config.iter_mounts() {
+        if let Err(err) = mount.mount() {
+            unsafe {
+                libc::printf(
+                    b"Failed to mount %s: %d\n\0".as_ptr() as *const libc::c_char,
+                    mount.target(),
+                    err as libc::c_int,
+                );
+                libc::sleep(600);
+                libc::exit(1);
+            }
         }
-    } else if let Err(err) = chdir(atombutter::SYSROOT) {
+    }
+
+    if let Err(err) = chdir(atombutter::SYSROOT) {
         unsafe {
             libc::printf(
                 b"Failed to chdir /sysroot: %d\n\0".as_ptr() as *const libc::c_char,

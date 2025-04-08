@@ -1,5 +1,5 @@
 use crate::vector::Vec;
-
+use crate::string::CStr;
 use crate::mount::{MountFlag, Mountpoint, MountpointFlags};
 
 const BUFFER_SIZE: usize = 8192;
@@ -12,7 +12,7 @@ impl Config {
     pub fn new(path: &str) -> Result<Self, libc::c_int> {
         let mut content = Vec::<u8>::with_capacity(BUFFER_SIZE)?;
 
-        let path_str = crate::CStr::new(path)?;
+        let path_str = CStr::new(path)?;
 
         unsafe {
             let fd = libc::open(path_str.inner(), libc::O_RDONLY);
@@ -107,4 +107,9 @@ impl Config {
 
         Ok(Self { mounts })
     }
+
+    pub fn iter_mounts(&self) -> crate::vector::VecIter<Mountpoint> {
+        self.mounts.iter()
+    }
+
 }
