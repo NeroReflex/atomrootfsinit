@@ -47,6 +47,10 @@ impl Config {
                             "ro" => flags.push(MountFlag::ReadOnly)?,
                             flg => {
                                 for d in flg.as_bytes().into_iter() {
+                                    if !data.empty() {
+                                        data.push(',' as u8)?;
+                                    }
+
                                     data.push(*d)?;
                                 }
                             }
