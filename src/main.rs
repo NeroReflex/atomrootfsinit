@@ -77,8 +77,8 @@ fn main() {
                 match mount.data() {
                     Some(data) => libc::printf(
                         b"Failed to mount %s with flags %s: %d\n\0".as_ptr() as *const libc::c_char,
-                        data.as_ptr(),
                         mount.target(),
+                        data.as_ptr(),
                         err as libc::c_int,
                     ),
                     None => libc::printf(

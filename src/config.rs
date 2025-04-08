@@ -48,18 +48,22 @@ impl Config {
                             "ro" => flags.push(MountFlag::ReadOnly)?,
                             flg => {
                                 for d in flg.as_bytes().into_iter() {
-                                    if !data.empty() {
-                                        data.push(',' as u8)?;
-                                    }
-
                                     data.push(*d)?;
                                 }
                             }
                         }
+
+                        data.push(',' as u8)?;
                     }
 
                     // mount flags are given as C string to the kernel: ensure it is NULL-terminated
                     if !data.empty() {
+                        // remove the last (unused) ','
+                        data.pop()?;
+
+                        // data can be a pointer to a kernel-defined struct,
+                        // but most filesystems in linux accepts a C-like string:
+                        // make sure such a string is NUL-terminated
                         data.push(0u8)?;
                     }
 
