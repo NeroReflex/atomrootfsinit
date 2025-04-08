@@ -195,7 +195,9 @@ impl Mountpoint {
     }
 
     pub fn target(&self) -> &str {
-        let slice = unsafe { core::slice::from_raw_parts(self.target.inner() as *const u8, self.target.strlen()) };
+        let slice = unsafe {
+            core::slice::from_raw_parts(self.target.inner() as *const u8, self.target.strlen())
+        };
 
         unsafe { core::str::from_utf8_unchecked(slice) }
     }

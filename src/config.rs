@@ -1,6 +1,6 @@
-use crate::vector::Vec;
-use crate::string::CStr;
 use crate::mount::{MountFlag, Mountpoint, MountpointFlags};
+use crate::string::CStr;
+use crate::vector::Vec;
 
 const BUFFER_SIZE: usize = 8192;
 
@@ -111,5 +111,4 @@ impl Config {
     pub fn iter_mounts(&self) -> crate::vector::VecIter<Mountpoint> {
         self.mounts.iter()
     }
-
 }
