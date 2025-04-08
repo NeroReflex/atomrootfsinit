@@ -1,3 +1,5 @@
+use core::ptr;
+
 use crate::CStr;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -118,34 +120,39 @@ impl Drop for Mountpoint {
 
 impl Mountpoint {
     pub fn new(
-        src: Option<&str>,
-        target: &str,
-        fstype: Option<&str>,
+        src: Option<&[u8]>,
+        target: &[u8],
+        fstype: Option<&[u8]>,
         flags: MountpointFlags,
         data: Option<&[u8]>,
     ) -> Result<Self, libc::c_int> {
         let src = match src {
-            Some(str) => Some(CStr::new(str)?),
+            Some(str) => Some(CStr::try_from(str)?),
             None => None,
         };
 
-        let target = CStr::new(target)?;
+        let target = CStr::try_from(target)?;
 
         let fstype = match fstype {
-            Some(str) => Some(CStr::new(str)?),
+            Some(str) => Some(CStr::try_from(str)?),
             None => None,
         };
 
         let data = match data {
             Some(d) => unsafe {
-                let data = libc::malloc(d.len()) as *mut libc::c_void;
-                if data == core::ptr::null_mut() {
-                    return Err(libc::ENOMEM);
+                match d.is_empty() {
+                    false => {
+                        let data = libc::malloc(d.len()) as *mut libc::c_void;
+                        if data.is_null() {
+                            return Err(libc::ENOMEM);
+                        }
+
+                        libc::memcpy(data, d.as_ptr() as *const libc::c_void, d.len());
+
+                        data as *const libc::c_void
+                    }
+                    true => ptr::null(),
                 }
-
-                libc::memcpy(data, d.as_ptr() as *const libc::c_void, d.len());
-
-                data as *const libc::c_void
             },
             None => core::ptr::null(),
         };
@@ -192,7 +199,7 @@ pub fn direct_detach(target: &str) -> Result<(), libc::c_int> {
 
     unsafe {
         /*
-         * On success, zero is returned.  On error, -1 is returned, and errno
+         * On success, zero is returned. On error, -1 is returned, and errno
          * is set to indicate the error.
          */
         if libc::umount2(target_str.inner(), libc::MNT_DETACH) != 0 {

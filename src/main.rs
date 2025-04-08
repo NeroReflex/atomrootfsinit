@@ -3,9 +3,7 @@
 extern crate libc;
 
 use atombutter::{
-    change_dir::chdir,
-    mount::{MountFlag, Mountpoint, MountpointFlags, direct_detach},
-    switch_root::{execute, pivot_root},
+    change_dir::chdir, config::Config, mount::{direct_detach, MountFlag, Mountpoint, MountpointFlags}, switch_root::{execute, pivot_root}
 };
 
 #[no_mangle]
@@ -20,12 +18,21 @@ fn main() {
      */
     let priv_root_mountpoint = Mountpoint::new(
         None,
-        SLASH,
+        SLASH.as_bytes(),
         None,
         MountpointFlags::new(&[MountFlag::Recursive, MountFlag::Private]),
         None,
     )
     .unwrap_or_else(|err| unsafe {
+        libc::printf(
+            b"Failed to create the mount object: %d\n\0".as_ptr() as *const libc::c_char,
+            err as libc::c_int,
+        );
+        libc::sleep(600);
+        libc::exit(1);
+    });
+
+    let config = Config::new("/etc/bstab").unwrap_or_else(|err| unsafe {
         libc::printf(
             b"Failed to create the mount object: %d\n\0".as_ptr() as *const libc::c_char,
             err as libc::c_int,

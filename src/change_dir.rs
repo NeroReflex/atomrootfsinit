@@ -3,7 +3,7 @@ pub fn chdir(path: &str) -> Result<(), libc::c_int> {
 
     unsafe {
         /*
-         * On success, zero is returned.  On error, -1 is returned, and errno
+         * On success, zero is returned. On error, -1 is returned, and errno
          * is set to indicate the error.
          */
         if libc::chdir(path_str.inner()) != 0 {
