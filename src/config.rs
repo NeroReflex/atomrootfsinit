@@ -1,51 +1,19 @@
 use crate::mount::{MountFlag, Mountpoint, MountpointFlags};
-use crate::string::CStr;
 use crate::vector::Vec;
-
-const BUFFER_SIZE: usize = 8192;
 
 pub struct Config {
     mounts: Vec<Mountpoint>,
 }
 
 impl Config {
-    pub fn new(path: &str) -> Result<Self, libc::c_int> {
-        let mut content = Vec::<u8>::with_capacity(BUFFER_SIZE)?;
-
-        let path_str = CStr::new(path)?;
-
-        unsafe {
-            let fd = libc::open(path_str.inner(), libc::O_RDONLY);
-            if fd < 0 {
-                return Err(*libc::__errno_location());
-            }
-
-            if let Err(err) = content.fill_by_function(|ptr, capacity| {
-                let bytes_read = libc::read(fd, ptr as *mut libc::c_void, capacity);
-
-                if bytes_read < 0 {
-                    return Err(*libc::__errno_location());
-                }
-
-                Ok(bytes_read as usize)
-            }) {
-                libc::close(fd);
-                return Err(err);
-            }
-
-            libc::close(fd);
-        }
-
+    pub fn new(content: Vec<u8>) -> Result<Self, libc::c_int> {
         let mut mounts = Vec::<Mountpoint>::default();
 
         let raw_data = content.split('\n' as u8, false)?;
         drop(content);
 
-        for i in 0..raw_data.len() {
-            let mount_entry_params = match raw_data.at(i) {
-                Some(e) => e.split(' ' as u8, false)?,
-                None => unreachable!(),
-            };
+        for mount_entry_line in raw_data.iter() {
+            let mount_entry_params = mount_entry_line.split(' ' as u8, false)?;
 
             let target = match mount_entry_params.at(0) {
                 Some(str) => Vec::<u8>::new(str.as_slice())?,

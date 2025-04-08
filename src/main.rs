@@ -3,13 +3,31 @@
 extern crate libc;
 
 use atombutter::{
-    change_dir::chdir, config::Config, mount::{direct_detach, MountFlag, Mountpoint, MountpointFlags}, switch_root::{execute, pivot_root}
+    change_dir::chdir,
+    config::Config,
+    mount::{direct_detach, MountFlag, Mountpoint, MountpointFlags},
+    switch_root::{execute, pivot_root},
 };
 
 #[no_mangle]
 #[inline(never)]
 fn main() {
     const SLASH: &str = "/";
+
+    let config_content = match atombutter::read_whole_file(
+        atombutter::CONFIG_FILE_PATH,
+        atombutter::MAX_CONFIG_FILE_SIZE,
+    ) {
+        Ok(content) => content,
+        Err(err) => unsafe {
+            libc::printf(
+                b"Failed to read configuration file: %d\n\0".as_ptr() as *const libc::c_char,
+                err as libc::c_int,
+            );
+            libc::sleep(600);
+            libc::exit(1);
+        },
+    };
 
     /* Work-around for kernel design: the kernel refuses MS_MOVE if any file systems are mounted
      * MS_SHARED. Hence remount them MS_PRIVATE here as a work-around.
@@ -41,9 +59,9 @@ fn main() {
         }
     }
 
-    let config = Config::new("/etc/bstab").unwrap_or_else(|err| unsafe {
+    let config = Config::new(config_content).unwrap_or_else(|err| unsafe {
         libc::printf(
-            b"Failed to create the mount object: %d\n\0".as_ptr() as *const libc::c_char,
+            b"Failed to parse configuration: %d\n\0".as_ptr() as *const libc::c_char,
             err as libc::c_int,
         );
         libc::sleep(600);

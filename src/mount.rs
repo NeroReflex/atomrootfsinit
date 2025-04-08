@@ -188,8 +188,9 @@ impl Mountpoint {
         };
 
         unsafe {
-            // Example: 
+            // Example:
             // mount("overlay", "/merged", "overlay", 0, "lowerdir=/etc,upperdir=/upper,wo"...)
+            // mount("src", "target", "<ignored>", MS_BIND, NULL)
             if libc::mount(
                 src,
                 self.target.inner(),
