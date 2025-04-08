@@ -4,7 +4,7 @@ extern crate libc;
 
 use atombutter::{
     change_dir::chdir,
-    mount::{MountFlag, Mountpoint, MountpointFlags},
+    mount::{MountFlag, Mountpoint, MountpointFlags, direct_detach},
     switch_root::{execute, pivot_root},
 };
 
@@ -23,31 +23,58 @@ fn main() {
         SLASH,
         None,
         MountpointFlags::new(&[MountFlag::Recursive, MountFlag::Private]),
-        None
+        None,
     )
-    .unwrap_or_else(|err| {
-        unsafe {
-            libc::printf(b"Failed to create the mount object: %d\n\0".as_ptr() as *const libc::c_char, err as libc::c_int);
-            libc::sleep(600);
-            libc::exit(1);
-        }
+    .unwrap_or_else(|err| unsafe {
+        libc::printf(
+            b"Failed to create the mount object: %d\n\0".as_ptr() as *const libc::c_char,
+            err as libc::c_int,
+        );
+        libc::sleep(600);
+        libc::exit(1);
     });
 
     if let Err(err) = priv_root_mountpoint.mount() {
         unsafe {
-            libc::printf(b"Failed to remount / as private: %d\n\0".as_ptr() as *const libc::c_char, err as libc::c_int);
+            libc::printf(
+                b"Failed to remount / as private: %d\n\0".as_ptr() as *const libc::c_char,
+                err as libc::c_int,
+            );
         }
-    } else if let Err(err) = pivot_root(atombutter::SYSROOT, atombutter::PUT_OLD) {
+    } else if let Err(err) = chdir(atombutter::SYSROOT) {
         unsafe {
-            libc::printf(b"Failed to pivot root to /sysroot: %d\n\0".as_ptr() as *const libc::c_char, err as libc::c_int);
+            libc::printf(
+                b"Failed to chdir /sysroot: %d\n\0".as_ptr() as *const libc::c_char,
+                err as libc::c_int,
+            );
+        }
+    } else if let Err(err) = pivot_root(".", ".") {
+        unsafe {
+            libc::printf(
+                b"Failed to pivot root to /sysroot: %d\n\0".as_ptr() as *const libc::c_char,
+                err as libc::c_int,
+            );
+        }
+    } else if let Err(err) = direct_detach(".") {
+        unsafe {
+            libc::printf(
+                b"Failed to umount the old rootfs: %d\n\0".as_ptr() as *const libc::c_char,
+                err as libc::c_int,
+            );
         }
     } else if let Err(err) = chdir(SLASH) {
         unsafe {
-            libc::printf(b"Failed to chdir to the new rootfs: %d\n\0".as_ptr() as *const libc::c_char, err as libc::c_int);
+            libc::printf(
+                b"Failed to chdir to the new rootfs: %d\n\0".as_ptr() as *const libc::c_char,
+                err as libc::c_int,
+            );
         }
     } else if let Err(err) = execute(atombutter::INIT) {
         unsafe {
-            libc::printf(b"Failed to execve the init program: %d\n\0".as_ptr() as *const libc::c_char, err as libc::c_int);
+            libc::printf(
+                b"Failed to execve the init program: %d\n\0".as_ptr() as *const libc::c_char,
+                err as libc::c_int,
+            );
         }
     } else {
         // This point should never be reached as execute calls execve

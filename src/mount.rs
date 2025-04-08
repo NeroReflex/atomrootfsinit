@@ -122,7 +122,7 @@ impl Mountpoint {
         target: &str,
         fstype: Option<&str>,
         flags: MountpointFlags,
-        data: Option<&[u8]>
+        data: Option<&[u8]>,
     ) -> Result<Self, libc::c_int> {
         let src = match src {
             Some(str) => Some(CStr::new(str)?),
@@ -185,4 +185,20 @@ impl Mountpoint {
 
         Ok(())
     }
+}
+
+pub fn direct_detach(target: &str) -> Result<(), libc::c_int> {
+    let target_str = crate::CStr::new(target)?;
+
+    unsafe {
+        /*
+         * On success, zero is returned.  On error, -1 is returned, and errno
+         * is set to indicate the error.
+         */
+        if libc::umount2(target_str.inner(), libc::MNT_DETACH) != 0 {
+            return Err(*libc::__errno_location());
+        }
+    }
+
+    Ok(())
 }
