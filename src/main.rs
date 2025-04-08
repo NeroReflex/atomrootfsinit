@@ -74,11 +74,19 @@ fn main() {
     for mount in config.iter_mounts() {
         if let Err(err) = mount.mount() {
             unsafe {
-                libc::printf(
-                    b"Failed to mount %s: %d\n\0".as_ptr() as *const libc::c_char,
-                    mount.target(),
-                    err as libc::c_int,
-                );
+                match mount.data() {
+                    Some(data) => libc::printf(
+                        b"Failed to mount %s with flags %s: %d\n\0".as_ptr() as *const libc::c_char,
+                        data.as_ptr(),
+                        mount.target(),
+                        err as libc::c_int,
+                    ),
+                    None => libc::printf(
+                        b"Failed to mount %s with no flags: %d\n\0".as_ptr() as *const libc::c_char,
+                        mount.target(),
+                        err as libc::c_int,
+                    )
+                };
                 libc::sleep(600);
                 libc::exit(1);
             }

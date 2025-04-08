@@ -117,6 +117,7 @@ pub struct Mountpoint {
     target: CStr,
     fstype: Option<CStr>,
     data: *const libc::c_void,
+    data_len: usize,
     flags: MountpointFlags,
 }
 
@@ -148,7 +149,7 @@ impl Mountpoint {
             None => None,
         };
 
-        let data = match data {
+        let (data, data_len) = match data {
             Some(d) => unsafe {
                 match d.is_empty() {
                     false => {
@@ -159,12 +160,12 @@ impl Mountpoint {
 
                         libc::memcpy(data, d.as_ptr() as *const libc::c_void, d.len());
 
-                        data as *const libc::c_void
+                        (data as *const libc::c_void, d.len())
                     }
-                    true => ptr::null(),
+                    true => (ptr::null(), 0),
                 }
             },
-            None => core::ptr::null(),
+            None => (core::ptr::null(), 0),
         };
 
         Ok(Self {
@@ -172,6 +173,7 @@ impl Mountpoint {
             target,
             fstype,
             data,
+            data_len,
             flags,
         })
     }
@@ -212,6 +214,15 @@ impl Mountpoint {
         };
 
         unsafe { core::str::from_utf8_unchecked(slice) }
+    }
+
+    pub fn data(&self) -> Option<&[u8]> {
+        let data_ptr = self.data as *const u8;
+        if data_ptr.is_null() || self.data_len == 0 {
+            return None
+        }
+
+        Some(unsafe { core::slice::from_raw_parts(data_ptr, self.data_len) })
     }
 }
 
