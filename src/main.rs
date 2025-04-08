@@ -29,33 +29,129 @@ fn main() {
         },
     };
 
-    /* Work-around for kernel design: the kernel refuses MS_MOVE if any file systems are mounted
+    /*
+     * Work-around for kernel design: the kernel refuses MS_MOVE if any file systems are mounted
      * MS_SHARED. Hence remount them MS_PRIVATE here as a work-around.
      *
      * https://bugzilla.redhat.com/show_bug.cgi?id=847418
      */
-    let priv_root_mountpoint = Mountpoint::new(
-        None,
-        SLASH.as_bytes(),
-        None,
-        MountpointFlags::new(&[MountFlag::Recursive, MountFlag::Private]),
-        None,
-    )
-    .unwrap_or_else(|err| unsafe {
-        libc::printf(
-            b"Failed to create the mount object: %d\n\0".as_ptr() as *const libc::c_char,
-            err as libc::c_int,
-        );
-        libc::sleep(600);
-        libc::exit(1);
-    });
-
-    if let Err(err) = priv_root_mountpoint.mount() {
-        unsafe {
+    {
+        let priv_root_mountpoint = Mountpoint::new(
+            None,
+            SLASH.as_bytes(),
+            None,
+            MountpointFlags::new(&[MountFlag::Recursive, MountFlag::Private]),
+            None,
+        )
+        .unwrap_or_else(|err| unsafe {
             libc::printf(
-                b"Failed to remount / as private: %d\n\0".as_ptr() as *const libc::c_char,
+                b"Failed to create the mount object: %d\n\0".as_ptr() as *const libc::c_char,
                 err as libc::c_int,
             );
+            libc::sleep(600);
+            libc::exit(1);
+        });
+
+        if let Err(err) = priv_root_mountpoint.mount() {
+            unsafe {
+                libc::printf(
+                    b"Failed to remount / as private: %d\n\0".as_ptr() as *const libc::c_char,
+                    err as libc::c_int,
+                );
+            }
+        }
+    }
+
+    /*
+     * Mount /dev into /sysroot/dev
+     */
+    {
+        let dev_mountpoint = Mountpoint::new(
+            Some("dev".as_bytes()),
+            "/sysroot/dev".as_bytes(),
+            Some("devtmpfs".as_bytes()),
+            MountpointFlags::new(&[MountFlag::Private]),
+            None,
+        )
+        .unwrap_or_else(|err| unsafe {
+            libc::printf(
+                b"Failed to create the mount object for /sysroot/dev: %d\n\0".as_ptr()
+                    as *const libc::c_char,
+                err as libc::c_int,
+            );
+            libc::sleep(600);
+            libc::exit(1);
+        });
+
+        if let Err(err) = dev_mountpoint.mount() {
+            unsafe {
+                libc::printf(
+                    b"Failed to mount /sysroot/dev: %d\n\0".as_ptr() as *const libc::c_char,
+                    err as libc::c_int,
+                );
+            }
+        }
+    }
+
+    /*
+     * Mount /proc into /sysroot/proc
+     */
+    {
+        let sys_mountpoint = Mountpoint::new(
+            Some("proc".as_bytes()),
+            "/sysroot/proc".as_bytes(),
+            Some("proc".as_bytes()),
+            MountpointFlags::new(&[MountFlag::Private]),
+            None,
+        )
+        .unwrap_or_else(|err| unsafe {
+            libc::printf(
+                b"Failed to create the mount object for /sysroot/proc: %d\n\0".as_ptr()
+                    as *const libc::c_char,
+                err as libc::c_int,
+            );
+            libc::sleep(600);
+            libc::exit(1);
+        });
+
+        if let Err(err) = sys_mountpoint.mount() {
+            unsafe {
+                libc::printf(
+                    b"Failed to mount /sysroot/proc: %d\n\0".as_ptr() as *const libc::c_char,
+                    err as libc::c_int,
+                );
+            }
+        }
+    }
+
+    /*
+     * Mount /sys into /sysroot/sys
+     */
+    {
+        let sys_mountpoint = Mountpoint::new(
+            Some("sys".as_bytes()),
+            "/sysroot/sys".as_bytes(),
+            Some("sysfs".as_bytes()),
+            MountpointFlags::new(&[MountFlag::Private]),
+            None,
+        )
+        .unwrap_or_else(|err| unsafe {
+            libc::printf(
+                b"Failed to create the mount object for /sysroot/sys: %d\n\0".as_ptr()
+                    as *const libc::c_char,
+                err as libc::c_int,
+            );
+            libc::sleep(600);
+            libc::exit(1);
+        });
+
+        if let Err(err) = sys_mountpoint.mount() {
+            unsafe {
+                libc::printf(
+                    b"Failed to mount /sysroot/sys: %d\n\0".as_ptr() as *const libc::c_char,
+                    err as libc::c_int,
+                );
+            }
         }
     }
 
