@@ -70,12 +70,13 @@ impl Config {
                     let mut flags = Vec::<MountFlag>::default();
                     let mut data = Vec::<u8>::default();
 
-                    for flag in serialized_flags.split(' ').into_iter() {
+                    for flag in serialized_flags.split(',').into_iter() {
                         match flag {
                             "rw" => {}
-                            "ro" => {
-                                flags.push(MountFlag::ReadOnly)?;
-                            }
+                            "noatime" => flags.push(MountFlag::NoAccessTime)?,
+                            "remount" => flags.push(MountFlag::Remount)?,
+                            "bind" => flags.push(MountFlag::Bind)?,
+                            "ro" => flags.push(MountFlag::ReadOnly)?,
                             flg => {
                                 for d in flg.as_bytes().into_iter() {
                                     data.push(*d)?;

@@ -4,6 +4,7 @@ use crate::string::CStr;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum MountFlag {
+    Bind,
     Shared,
     Private,
     Slave,
@@ -19,10 +20,12 @@ pub enum MountFlag {
     RelativeAccessTime,
     Silent,
     Synchronous,
+    Remount,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct MountpointFlags {
+    bind: bool,
     shared: bool,
     private: bool,
     slave: bool,
@@ -38,11 +41,13 @@ pub struct MountpointFlags {
     relative_access_time: bool,
     silent: bool,
     synchronous: bool,
+    remount: bool,
 }
 
 impl MountpointFlags {
     pub fn new(flags: &[MountFlag]) -> Self {
         let mut mountpoint_flags = Self {
+            bind: false,
             shared: false,
             private: false,
             slave: false,
@@ -58,10 +63,12 @@ impl MountpointFlags {
             relative_access_time: false,
             silent: false,
             synchronous: false,
+            remount: false,
         };
 
         for &flag in flags {
             match flag {
+                MountFlag::Bind => mountpoint_flags.bind = true,
                 MountFlag::Shared => mountpoint_flags.shared = true,
                 MountFlag::Private => mountpoint_flags.private = true,
                 MountFlag::Slave => mountpoint_flags.slave = true,
@@ -77,6 +84,7 @@ impl MountpointFlags {
                 MountFlag::RelativeAccessTime => mountpoint_flags.relative_access_time = true,
                 MountFlag::Silent => mountpoint_flags.silent = true,
                 MountFlag::Synchronous => mountpoint_flags.synchronous = true,
+                MountFlag::Remount => mountpoint_flags.remount = true,
             }
         }
 
@@ -84,7 +92,8 @@ impl MountpointFlags {
     }
 
     pub(crate) fn flags(&self) -> libc::c_ulong {
-        (self.shared as libc::c_ulong * libc::MS_SHARED)
+        (self.bind as libc::c_ulong * libc::MS_BIND)
+            | (self.shared as libc::c_ulong * libc::MS_SHARED)
             | (self.private as libc::c_ulong * libc::MS_PRIVATE)
             | (self.slave as libc::c_ulong * libc::MS_SLAVE)
             | (self.unbindable as libc::c_ulong * libc::MS_UNBINDABLE)
@@ -99,6 +108,7 @@ impl MountpointFlags {
             | (self.relative_access_time as libc::c_ulong * libc::MS_RELATIME)
             | (self.silent as libc::c_ulong * libc::MS_SILENT)
             | (self.synchronous as libc::c_ulong * libc::MS_SYNCHRONOUS)
+            | (self.remount as libc::c_ulong * libc::MS_REMOUNT)
     }
 }
 
@@ -178,7 +188,8 @@ impl Mountpoint {
         };
 
         unsafe {
-            // Example: mount("overlay", "/merged", "overlay", 0, "lowerdir=/etc,upperdir=/upper,wo"...)
+            // Example: 
+            // mount("overlay", "/merged", "overlay", 0, "lowerdir=/etc,upperdir=/upper,wo"...)
             if libc::mount(
                 src,
                 self.target.inner(),
