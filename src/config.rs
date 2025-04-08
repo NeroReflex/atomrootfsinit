@@ -43,6 +43,7 @@ impl Config {
                             "rw" => {}
                             "noatime" => flags.push(MountFlag::NoAccessTime)?,
                             "remount" => flags.push(MountFlag::Remount)?,
+                            "recursive" => flags.push(MountFlag::Recursive)?,
                             "bind" => flags.push(MountFlag::Bind)?,
                             "ro" => flags.push(MountFlag::ReadOnly)?,
                             flg => {
