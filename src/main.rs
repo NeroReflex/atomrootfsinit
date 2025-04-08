@@ -10,18 +10,7 @@ use atombutter::{
 
 #[no_mangle]
 #[inline(never)]
-pub extern "C" fn main() {
-    // Check if the current process is PID 1
-    unsafe {
-        let pid = libc::getpid();
-        libc::printf(b"Starting AtomButter as PID %d...\n\0".as_ptr() as *const libc::c_char, pid as libc::c_int);
-
-        if pid != 1 {
-            //eprintln!("Current process is not PID1: {pid}");
-            //libc::exit(1);
-        }
-    }
-
+fn main() {
     const SLASH: &str = "/";
 
     /* Work-around for kernel design: the kernel refuses MS_MOVE if any file systems are mounted
@@ -34,6 +23,7 @@ pub extern "C" fn main() {
         SLASH,
         None,
         MountpointFlags::new(&[MountFlag::Recursive, MountFlag::Private]),
+        None
     )
     .unwrap_or_else(|err| {
         unsafe {

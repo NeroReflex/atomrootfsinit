@@ -122,6 +122,7 @@ impl Mountpoint {
         target: &str,
         fstype: Option<&str>,
         flags: MountpointFlags,
+        data: Option<&[u8]>
     ) -> Result<Self, libc::c_int> {
         let src = match src {
             Some(str) => Some(CStr::new(str)?),
@@ -135,7 +136,19 @@ impl Mountpoint {
             None => None,
         };
 
-        let data = core::ptr::null_mut();
+        let data = match data {
+            Some(d) => unsafe {
+                let data = libc::malloc(d.len()) as *mut libc::c_void;
+                if data == core::ptr::null_mut() {
+                    return Err(libc::ENOMEM);
+                }
+
+                libc::memcpy(data, d.as_ptr() as *const libc::c_void, d.len());
+
+                data as *const libc::c_void
+            },
+            None => core::ptr::null(),
+        };
 
         Ok(Self {
             src,
