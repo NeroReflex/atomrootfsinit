@@ -85,7 +85,7 @@ fn main() {
                         b"Failed to mount %s with no flags: %d\n\0".as_ptr() as *const libc::c_char,
                         mount.target(),
                         err as libc::c_int,
-                    )
+                    ),
                 };
                 libc::sleep(600);
                 libc::exit(1);
