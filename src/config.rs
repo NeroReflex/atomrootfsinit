@@ -13,14 +13,20 @@ impl Config {
         drop(content);
 
         for mount_entry_line in raw_data.iter() {
-            let mount_entry_params = mount_entry_line.split(' ' as u8, false)?;
+            let mount_entry_params = match mount_entry_line.find('#' as u8) {
+                Some(f) => &mount_entry_line.as_slice()[..f],
+                None => mount_entry_line.as_slice(),
+            };
 
-            let target = match mount_entry_params.at(0) {
+            let uncommented_mount_line = Vec::new(mount_entry_params)?;
+            let mount_entry_params = uncommented_mount_line.split(' ' as u8, false)?;
+
+            let src = match mount_entry_params.at(0) {
                 Some(str) => Vec::<u8>::new(str.as_slice())?,
                 None => return Err(libc::EINVAL),
             };
 
-            let src = match mount_entry_params.at(1) {
+            let target = match mount_entry_params.at(1) {
                 Some(str) => Vec::<u8>::new(str.as_slice())?,
                 None => return Err(libc::EINVAL),
             };
@@ -41,9 +47,16 @@ impl Config {
                     for flag in serialized_flags.split(',').into_iter() {
                         match flag {
                             "rw" => {}
+                            "nodev" => flags.push(MountFlag::NoDev)?,
+                            "noexec" => flags.push(MountFlag::NoExec)?,
+                            "nosuid" => flags.push(MountFlag::NoSUID)?,
                             "noatime" => flags.push(MountFlag::NoAccessTime)?,
                             "remount" => flags.push(MountFlag::Remount)?,
                             "recursive" => flags.push(MountFlag::Recursive)?,
+                            "lazytime" => flags.push(MountFlag::Lazytime)?,
+                            "silent" => flags.push(MountFlag::Silent)?,
+                            "shared" => flags.push(MountFlag::Shared)?,
+                            "private" => flags.push(MountFlag::Private)?,
                             "bind" => flags.push(MountFlag::Bind)?,
                             "ro" => flags.push(MountFlag::ReadOnly)?,
                             flg => {

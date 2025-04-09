@@ -15,7 +15,7 @@ pub const PUT_OLD: &str = "/sysroot/mnt";
 
 pub const INIT: &str = "/usr/lib/systemd/systemd";
 
-pub const CONFIG_FILE_PATH: &str = "/etc/bstab";
+pub const CONFIG_FILE_PATH: &str = "/etc/rdtab";
 pub const MAX_CONFIG_FILE_SIZE: usize = 8192;
 
 pub fn read_whole_file(
