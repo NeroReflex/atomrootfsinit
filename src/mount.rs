@@ -219,7 +219,7 @@ impl Mountpoint {
     pub fn data(&self) -> Option<&[u8]> {
         let data_ptr = self.data as *const u8;
         if data_ptr.is_null() || self.data_len == 0 {
-            return None
+            return None;
         }
 
         Some(unsafe { core::slice::from_raw_parts(data_ptr, self.data_len) })
