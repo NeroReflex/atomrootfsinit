@@ -79,7 +79,7 @@ fn main() {
             'trim: loop {
                 if let Some(val) = rdname_content.at(rdname_content.len() - 1) {
                     if (val == ('\t' as u8)) || (val == ('\n' as u8)) || (val == (' ' as u8)) {
-                        rdname_content.pop().unwrap();
+                        rdname_content.pop();
                         continue 'trim;
                     }
                 }

@@ -72,7 +72,7 @@ impl Config {
                     // mount flags are given as C string to the kernel: ensure it is NULL-terminated
                     if !data.empty() {
                         // remove the last (unused) ','
-                        data.pop()?;
+                        let _ = data.pop();
 
                         // data can be a pointer to a kernel-defined struct,
                         // but most filesystems in linux accepts a C-like string:

@@ -237,15 +237,15 @@ impl<T> Vec<T> {
         Ok(())
     }
 
-    pub fn pop(&mut self) -> Result<Option<T>, libc::c_int> {
+    pub fn pop(&mut self) -> Option<T> {
         if self.length == 0 {
-            return Ok(None);
+            return None;
         }
+
+        let value = unsafe { ptr::read(self.ptr.add(self.length - 1)) };
+
         self.length -= 1;
-        unsafe {
-            let value = ptr::read(self.ptr.add(self.length));
-            Ok(Some(value))
-        }
+        Some(value)
     }
 
     fn resize(&mut self) -> Result<(), libc::c_int> {
