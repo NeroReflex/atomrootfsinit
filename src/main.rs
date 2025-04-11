@@ -48,7 +48,15 @@ fn main() {
 
     (match atombutter::read_whole_file(atombutter::RDNAME_PATH, atombutter::RDNAME_MAX_FILE_SIZE) {
         Ok(mut rdname_content) => {
-            rdname_content.push(0u8).unwrap();
+            rdname_content.push(0u8).unwrap_or_else(|err| unsafe {
+                libc::printf(
+                    b"Failed to append NUL-terminator to rdname content %s: %d\n\0".as_ptr()
+                        as *const libc::c_char,
+                    rdname_content.as_slice(),
+                    err as libc::c_int,
+                );
+                libc::exit(1);
+            });
             rdname_content
                 .prepend(b"/deployments/")
                 .unwrap_or_else(|err| unsafe {
