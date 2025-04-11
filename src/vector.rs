@@ -229,9 +229,7 @@ impl<T> Vec<T> {
         if self.length == self.capacity {
             self.resize()?;
         }
-        unsafe {
-            ptr::write(self.ptr.add(self.length), value);
-        }
+        unsafe { ptr::write_unaligned(self.ptr.add(self.length), value) };
         self.length += 1;
 
         Ok(())
@@ -273,10 +271,13 @@ impl<T> Vec<T> {
         Ok(())
     }
 
-    pub fn as_slice(&self) -> &[T] {
+    pub fn as_slice(&self) -> Option<&[T]> {
         // Safety: We are returning a slice of the valid range of elements.
         // The pointer is valid for the length of the vector.
-        unsafe { core::slice::from_raw_parts(self.ptr, self.length) }
+        match self.empty() {
+            false => Some(unsafe { core::slice::from_raw_parts(self.ptr, self.length) }),
+            true => None,
+        }
     }
 }
 

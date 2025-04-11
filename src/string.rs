@@ -1,3 +1,4 @@
+#[derive(Debug)]
 pub struct CStr {
     alloc_sz: usize,
     data: *const libc::c_char,

@@ -21,27 +21,28 @@ fn main() {
      * https://bugzilla.redhat.com/show_bug.cgi?id=847418
      */
     #[cfg(target_os = "linux")]
-    let _ = Mountpoint::new(
-        None,
-        SLASH.as_bytes(),
-        None,
-        MountpointFlags::new(&[MountFlag::Recursive, MountFlag::Private]),
-        None,
-    )
-    .unwrap_or_else(|err| unsafe {
-        libc::printf(
-            b"Failed to create the mount object: %d\n\0".as_ptr() as *const libc::c_char,
-            err as libc::c_int,
-        );
-        libc::exit(err);
-    })
-    .mount()
-    .unwrap_or_else(|err| unsafe {
-        libc::printf(
-            b"Failed to remount / as private: %d\n\0".as_ptr() as *const libc::c_char,
-            err as libc::c_int,
-        );
-    });
+        let _ = Mountpoint::new(
+            None,
+            SLASH,
+            None,
+            MountpointFlags::new(&[MountFlag::Recursive, MountFlag::Private]),
+            None,
+        )
+        .unwrap_or_else(|err| unsafe {
+            libc::printf(
+                b"Failed to create the mount object: %d\n\0".as_ptr() as *const libc::c_char,
+                err as libc::c_int,
+            );
+            libc::sleep(10);
+            libc::exit(err);
+        })
+        .mount()
+        .unwrap_or_else(|err| unsafe {
+            libc::printf(
+                b"Failed to remount / as private: %d\n\0".as_ptr() as *const libc::c_char,
+                err as libc::c_int,
+            );
+        });
 
     unsafe {
         // Create a signal set and fill it
@@ -61,6 +62,7 @@ fn main() {
                     rdname_content.as_slice(),
                     err as libc::c_int,
                 );
+                libc::sleep(10);
                 libc::exit(err);
             });
 
@@ -73,13 +75,11 @@ fn main() {
                         rdname_content.as_slice(),
                         err as libc::c_int,
                     );
+                    libc::sleep(10);
                     libc::exit(err);
                 });
-            unsafe { libc::printf(b"3\n\0".as_ptr() as *const libc::c_char) };
-            let mut dbg: libc::c_int = 0;
-            'trim: loop {
-                dbg += 1;
 
+            'trim: loop {
                 let curr_len = rdname_content.len();
                 if curr_len == 0 {
                     unsafe {
@@ -106,28 +106,25 @@ fn main() {
 
                 break 'trim;
             }
-            unsafe { libc::printf(b"4\n\0".as_ptr() as *const libc::c_char) };
 
-            let dbg = match rdname_content.empty() {
+            match rdname_content.empty() {
                 true => Mountpoint::new(
-                    Some(b"/"),
-                    b"/sysroot",
-                    Some(b"bind"),
+                    Some(SLASH),
+                    "/sysroot",
+                    Some("bind"),
                     MountpointFlags::new(&[MountFlag::Bind]),
                     None,
                 ),
                 false => Mountpoint::new(
-                    Some(rdname_content.as_slice()),
-                    b"/sysroot",
-                    Some(b"bind"),
+                    Some(
+                        core::str::from_utf8(rdname_content.as_slice().unwrap_or(&[])).unwrap_or_else(|_| "")
+                    ),
+                    "/sysroot",
+                    Some("bind"),
                     MountpointFlags::new(&[MountFlag::Bind]),
                     None,
                 ),
-            };
-
-            unsafe { libc::printf(b"5\n\0".as_ptr() as *const libc::c_char) };
-
-            dbg
+            }
         }
         Err(err) => {
             unsafe {
@@ -139,9 +136,9 @@ fn main() {
             };
 
             Mountpoint::new(
-                Some(b"/"),
-                b"/sysroot",
-                Some(b"bind"),
+                Some(SLASH),
+                "/sysroot",
+                Some("bind"),
                 MountpointFlags::new(&[MountFlag::Bind]),
                 None,
             )
@@ -152,6 +149,7 @@ fn main() {
             b"Failed to create the mount object: %d\n\0".as_ptr() as *const libc::c_char,
             err as libc::c_int,
         );
+        libc::sleep(10);
         libc::exit(err);
     })
     .mount()
@@ -160,6 +158,7 @@ fn main() {
             b"Failed to mount /sysroot: %d\n\0".as_ptr() as *const libc::c_char,
             err as libc::c_int,
         );
+        libc::sleep(10);
         libc::exit(err);
     });
 
@@ -174,34 +173,29 @@ fn main() {
                 b"Failed to parse configuration: %d\n\0".as_ptr() as *const libc::c_char,
                 err as libc::c_int,
             );
-            libc::exit(1);
+            libc::sleep(10);
+            libc::exit(err);
         }),
         Err(err) => unsafe {
             libc::printf(
                 b"Failed to read configuration file: %d\n\0".as_ptr() as *const libc::c_char,
                 err as libc::c_int,
             );
-            libc::exit(1);
+            libc::sleep(10);
+            libc::exit(err);
         },
     };
 
     for mount in config.iter_mounts() {
         if let Err(err) = mount.mount() {
             unsafe {
-                match mount.data() {
-                    Some(data) => libc::printf(
-                        b"Failed to mount %s with flags %s: %d\n\0".as_ptr() as *const libc::c_char,
-                        mount.target(),
-                        data.as_ptr(),
-                        err as libc::c_int,
-                    ),
-                    None => libc::printf(
-                        b"Failed to mount %s with no flags: %d\n\0".as_ptr() as *const libc::c_char,
-                        mount.target(),
-                        err as libc::c_int,
-                    ),
-                };
-                libc::exit(1);
+                libc::printf(
+                    b"Failed to mount %s: %d\n\0".as_ptr() as *const libc::c_char,
+                    mount.target(),
+                    err as libc::c_int,
+                );
+                libc::sleep(10);
+                libc::exit(err);
             }
         }
     }
@@ -250,6 +244,7 @@ fn main() {
     // If we ends up here let the user know about that as this shouldn't happen
     unsafe {
         libc::printf(b"An unrecognised error has happened\n\0".as_ptr() as *const libc::c_char);
+        libc::sleep(10);
         libc::exit(1)
     }
 }

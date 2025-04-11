@@ -23,7 +23,7 @@ pub enum MountFlag {
     Remount,
 }
 
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Default)]
 pub struct MountpointFlags {
     bind: bool,
     shared: bool,
@@ -91,6 +91,28 @@ impl MountpointFlags {
         mountpoint_flags
     }
 
+    pub fn set(&mut self, flag: MountFlag) {
+        match flag {
+            MountFlag::Bind => self.bind = true,
+            MountFlag::Shared => self.shared = true,
+            MountFlag::Private => self.private = true,
+            MountFlag::Slave => self.slave = true,
+            MountFlag::Unbindable => self.unbindable = true,
+            MountFlag::Recursive => self.recursive = true,
+            MountFlag::DirSync => self.dirsync = true,
+            MountFlag::Lazytime => self.lazytime = true,
+            MountFlag::NoAccessTime => self.no_access_time = true,
+            MountFlag::NoDev => self.no_dev = true,
+            MountFlag::NoExec => self.no_exec = true,
+            MountFlag::NoSUID => self.no_suid = true,
+            MountFlag::ReadOnly => self.read_only = true,
+            MountFlag::RelativeAccessTime => self.relative_access_time = true,
+            MountFlag::Silent => self.silent = true,
+            MountFlag::Synchronous => self.synchronous = true,
+            MountFlag::Remount => self.remount = true,
+        }
+    }
+
     pub(crate) fn flags(&self) -> libc::c_ulong {
         (self.bind as libc::c_ulong * libc::MS_BIND)
             | (self.shared as libc::c_ulong * libc::MS_SHARED)
@@ -112,6 +134,7 @@ impl MountpointFlags {
     }
 }
 
+#[derive(Debug)]
 pub struct Mountpoint {
     src: Option<CStr>,
     target: CStr,
@@ -131,21 +154,21 @@ impl Drop for Mountpoint {
 
 impl Mountpoint {
     pub fn new(
-        src: Option<&[u8]>,
-        target: &[u8],
-        fstype: Option<&[u8]>,
+        src: Option<&str>,
+        target: &str,
+        fstype: Option<&str>,
         flags: MountpointFlags,
         data: Option<&[u8]>,
     ) -> Result<Self, libc::c_int> {
         let src = match src {
-            Some(str) => Some(CStr::try_from(str)?),
+            Some(str) => Some(CStr::new(str)?),
             None => None,
         };
 
-        let target = CStr::try_from(target)?;
+        let target = CStr::new(target)?;
 
         let fstype = match fstype {
-            Some(str) => Some(CStr::try_from(str)?),
+            Some(str) => Some(CStr::new(str)?),
             None => None,
         };
 
