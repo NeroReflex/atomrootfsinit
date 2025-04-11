@@ -14,14 +14,13 @@ use atombutter::{
 fn main() {
     const SLASH: &str = "/";
 
-    unsafe { libc::printf(b"Starting AtomButter...\n\0".as_ptr() as *const libc::c_char) };
-
     /*
      * Work-around for kernel design: the kernel refuses MS_MOVE if any file systems are mounted
      * MS_SHARED. Hence remount them MS_PRIVATE here as a work-around.
      *
      * https://bugzilla.redhat.com/show_bug.cgi?id=847418
      */
+    #[cfg(target_os = "linux")]
     let _ = Mountpoint::new(
         None,
         SLASH.as_bytes(),
@@ -34,7 +33,7 @@ fn main() {
             b"Failed to create the mount object: %d\n\0".as_ptr() as *const libc::c_char,
             err as libc::c_int,
         );
-        libc::exit(1);
+        libc::exit(err);
     })
     .mount()
     .unwrap_or_else(|err| unsafe {
@@ -45,22 +44,16 @@ fn main() {
     });
 
     unsafe {
-        libc::printf(b"Blocking signals...\n\0".as_ptr() as *const libc::c_char);
-
         // Create a signal set and fill it
         let mut set: libc::sigset_t = core::mem::zeroed();
         libc::sigfillset(&mut set);
 
         // Block all signals
         libc::sigprocmask(libc::SIG_BLOCK, &set, 0 as *mut libc::sigset_t);
-
-        libc::printf(b"All signals blocked.\n\0".as_ptr() as *const libc::c_char);
     }
 
     (match atombutter::read_whole_file(atombutter::RDNAME_PATH, atombutter::RDNAME_MAX_FILE_SIZE) {
         Ok(mut rdname_content) => {
-            unsafe { libc::printf(b"1\n\0".as_ptr() as *const libc::c_char) };
-
             rdname_content.push(0u8).unwrap_or_else(|err| unsafe {
                 libc::printf(
                     b"Failed to append NUL-terminator to rdname content %s: %d\n\0".as_ptr()
@@ -68,10 +61,8 @@ fn main() {
                     rdname_content.as_slice(),
                     err as libc::c_int,
                 );
-                libc::exit(1);
+                libc::exit(err);
             });
-
-            unsafe { libc::printf(b"2\n\0".as_ptr() as *const libc::c_char) };
 
             rdname_content
                 .prepend(b"/deployments/")
@@ -82,13 +73,11 @@ fn main() {
                         rdname_content.as_slice(),
                         err as libc::c_int,
                     );
-                    libc::exit(1);
+                    libc::exit(err);
                 });
             unsafe { libc::printf(b"3\n\0".as_ptr() as *const libc::c_char) };
             let mut dbg: libc::c_int = 0;
             'trim: loop {
-                unsafe { libc::printf(b"iteration %d\n\0".as_ptr() as *const libc::c_char, dbg) };
-
                 dbg += 1;
 
                 let curr_len = rdname_content.len();
