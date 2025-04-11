@@ -76,10 +76,32 @@ fn main() {
                     libc::exit(1);
                 });
             unsafe { libc::printf(b"3\n\0".as_ptr() as *const libc::c_char) };
+            let mut dbg: libc::c_int = 0;
             'trim: loop {
-                if let Some(val) = rdname_content.at(rdname_content.len() - 1) {
+                unsafe { libc::printf(b"iteration %d\n\0".as_ptr() as *const libc::c_char, dbg) };
+
+                dbg += 1;
+
+                let curr_len = rdname_content.len();
+                if curr_len == 0 {
+                    unsafe {
+                        libc::printf(b"File rdname does not contain a valid name!\n\0".as_ptr()
+                            as *const libc::c_char)
+                    };
+                    break 'trim;
+                }
+
+                if let Some(val) = rdname_content.at(curr_len - 1) {
                     if (val == ('\t' as u8)) || (val == ('\n' as u8)) || (val == (' ' as u8)) {
-                        rdname_content.pop();
+                        match rdname_content.pop() {
+                            Some(ch) => unsafe {
+                                libc::printf(
+                                    b"debug: pop %02x\n\0".as_ptr() as *const libc::c_char,
+                                    ch as libc::c_uint,
+                                );
+                            },
+                            None => unreachable!(),
+                        }
                         continue 'trim;
                     }
                 }
@@ -88,13 +110,22 @@ fn main() {
             }
             unsafe { libc::printf(b"4\n\0".as_ptr() as *const libc::c_char) };
 
-            let dbg = Mountpoint::new(
-                Some(rdname_content.as_slice()),
-                b"/sysroot",
-                Some(b"bind"),
-                MountpointFlags::new(&[MountFlag::Bind]),
-                None,
-            );
+            let dbg = match rdname_content.empty() {
+                true => Mountpoint::new(
+                    Some(b"/"),
+                    b"/sysroot",
+                    Some(b"bind"),
+                    MountpointFlags::new(&[MountFlag::Bind]),
+                    None,
+                ),
+                false => Mountpoint::new(
+                    Some(rdname_content.as_slice()),
+                    b"/sysroot",
+                    Some(b"bind"),
+                    MountpointFlags::new(&[MountFlag::Bind]),
+                    None,
+                ),
+            };
 
             unsafe { libc::printf(b"5\n\0".as_ptr() as *const libc::c_char) };
 
