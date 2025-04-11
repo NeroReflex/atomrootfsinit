@@ -117,7 +117,8 @@ fn main() {
                 ),
                 false => Mountpoint::new(
                     Some(
-                        core::str::from_utf8(rdname_content.as_slice().unwrap_or(&[])).unwrap_or_else(|_| "")
+                        core::str::from_utf8(rdname_content.as_slice().unwrap_or(&[]))
+                            .unwrap_or_else(|_| ""),
                     ),
                     "/sysroot",
                     Some("bind"),

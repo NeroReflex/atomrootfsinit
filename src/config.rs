@@ -58,11 +58,15 @@ impl Config {
         drop(content);
 
         for mount_entry_line in raw_data.iter() {
-            let uncommented_unsplitted_line =
-                core::str::from_utf8(mount_entry_line.as_slice().unwrap())
-                    .map_err(|_| libc::EINVAL)
-                    .unwrap();
-            for unsplitted_line in uncommented_unsplitted_line.split("#") {
+            for (idx, unsplitted_line) in core::str::from_utf8(mount_entry_line.as_slice().unwrap())
+                .map_err(|_| libc::EINVAL)?
+                .split("#")
+                .enumerate()
+            {
+                if idx > 0 || unsplitted_line.is_empty() {
+                    break;
+                }
+
                 let mut index = 0;
                 let mut src: Option<&str> = None;
                 let mut target: Option<&str> = None;
@@ -81,18 +85,22 @@ impl Config {
                         1 => target = Some(mount_entry_param),
                         2 => fstype = Some(mount_entry_param),
                         3 => (flags, data) = serialized_flags_split(mount_entry_param)?,
-                        4 => _dump = match mount_entry_param {
-                            "0" => 0,
-                            "1" => 1,
-                            "2" => 2,
-                            _ => 0,
-                        },
-                        5 => _fsck = match mount_entry_param {
-                            "0" => 0,
-                            "1" => 1,
-                            "2" => 2,
-                            _ => 0,
-                        },
+                        4 => {
+                            _dump = match mount_entry_param {
+                                "0" => 0,
+                                "1" => 1,
+                                "2" => 2,
+                                _ => 0,
+                            }
+                        }
+                        5 => {
+                            _fsck = match mount_entry_param {
+                                "0" => 0,
+                                "1" => 1,
+                                "2" => 2,
+                                _ => 0,
+                            }
+                        }
                         _ => return Err(libc::EINVAL),
                     };
 
