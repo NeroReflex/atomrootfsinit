@@ -22,30 +22,39 @@ fn main() {
      *
      * https://bugzilla.redhat.com/show_bug.cgi?id=847418
      */
-    {
-        let priv_root_mountpoint = Mountpoint::new(
-            None,
-            SLASH.as_bytes(),
-            None,
-            MountpointFlags::new(&[MountFlag::Recursive, MountFlag::Private]),
-            None,
-        )
-        .unwrap_or_else(|err| unsafe {
-            libc::printf(
-                b"Failed to create the mount object: %d\n\0".as_ptr() as *const libc::c_char,
-                err as libc::c_int,
-            );
-            libc::exit(1);
-        });
+    let _ = Mountpoint::new(
+        None,
+        SLASH.as_bytes(),
+        None,
+        MountpointFlags::new(&[MountFlag::Recursive, MountFlag::Private]),
+        None,
+    )
+    .unwrap_or_else(|err| unsafe {
+        libc::printf(
+            b"Failed to create the mount object: %d\n\0".as_ptr() as *const libc::c_char,
+            err as libc::c_int,
+        );
+        libc::exit(1);
+    })
+    .mount()
+    .unwrap_or_else(|err| unsafe {
+        libc::printf(
+            b"Failed to remount / as private: %d\n\0".as_ptr() as *const libc::c_char,
+            err as libc::c_int,
+        );
+    });
 
-        if let Err(err) = priv_root_mountpoint.mount() {
-            unsafe {
-                libc::printf(
-                    b"Failed to remount / as private: %d\n\0".as_ptr() as *const libc::c_char,
-                    err as libc::c_int,
-                );
-            }
-        }
+    unsafe {
+        libc::printf(b"Blocking signals...\n\0".as_ptr() as *const libc::c_char);
+
+        // Create a signal set and fill it
+        let mut set: libc::sigset_t = core::mem::zeroed();
+        libc::sigfillset(&mut set);
+
+        // Block all signals
+        libc::sigprocmask(libc::SIG_BLOCK, &set, 0 as *mut libc::sigset_t);
+
+        libc::printf(b"All signals blocked.\n\0".as_ptr() as *const libc::c_char);
     }
 
     (match atombutter::read_whole_file(atombutter::RDNAME_PATH, atombutter::RDNAME_MAX_FILE_SIZE) {
