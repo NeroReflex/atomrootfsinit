@@ -157,8 +157,7 @@ impl Mountpoint {
                         if data.is_null() {
                             return Err(libc::ENOMEM);
                         }
-
-                        libc::memcpy(data, d.as_ptr() as *const libc::c_void, d.len());
+                        ptr::copy(d.as_ptr() as *const libc::c_void, data, d.len());
 
                         (data as *const libc::c_void, d.len())
                     }
