@@ -85,6 +85,31 @@ impl Config {
                 None => (MountpointFlags::new(&[]), Vec::<u8>::default()),
             };
 
+            let _dump = match mount_entry_params.at(4) {
+                Some(str) => match str.at(0) {
+                    Some(val) => match val {
+                        b'0' => 0,
+                        b'1' => 1,
+                        _ => 0,
+                    },
+                    None => 0,
+                },
+                None => 0,
+            };
+
+            let _fsck = match mount_entry_params.at(5) {
+                Some(str) => match str.at(0) {
+                    Some(val) => match val {
+                        b'0' => 0,
+                        b'1' => 1,
+                        b'2' => 2,
+                        _ => 0,
+                    },
+                    None => 0,
+                },
+                None => 0,
+            };
+
             let mount = Mountpoint::new(
                 Some(src.as_slice()),
                 target.as_slice(),

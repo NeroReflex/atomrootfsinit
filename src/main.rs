@@ -14,21 +14,6 @@ use atombutter::{
 fn main() {
     const SLASH: &str = "/";
 
-    let config_content = match atombutter::read_whole_file(
-        atombutter::CONFIG_FILE_PATH,
-        atombutter::MAX_CONFIG_FILE_SIZE,
-    ) {
-        Ok(content) => content,
-        Err(err) => unsafe {
-            libc::printf(
-                b"Failed to read configuration file: %d\n\0".as_ptr() as *const libc::c_char,
-                err as libc::c_int,
-            );
-            libc::sleep(600);
-            libc::exit(1);
-        },
-    };
-
     /*
      * Work-around for kernel design: the kernel refuses MS_MOVE if any file systems are mounted
      * MS_SHARED. Hence remount them MS_PRIVATE here as a work-around.
@@ -48,7 +33,6 @@ fn main() {
                 b"Failed to create the mount object: %d\n\0".as_ptr() as *const libc::c_char,
                 err as libc::c_int,
             );
-            libc::sleep(600);
             libc::exit(1);
         });
 
@@ -62,14 +46,93 @@ fn main() {
         }
     }
 
-    let config = Config::new(config_content).unwrap_or_else(|err| unsafe {
+    (match atombutter::read_whole_file(atombutter::RDNAME_PATH, atombutter::RDNAME_MAX_FILE_SIZE) {
+        Ok(mut rdname_content) => {
+            rdname_content.push(0u8).unwrap();
+            rdname_content
+                .prepend(b"/deployments/")
+                .unwrap_or_else(|err| unsafe {
+                    libc::printf(
+                        b"Failed to get the temporary path to the deployment %s: %d\n\0".as_ptr()
+                            as *const libc::c_char,
+                        rdname_content.as_slice(),
+                        err as libc::c_int,
+                    );
+                    libc::exit(1);
+                });
+
+            'a: loop {
+                if let Some(val) = rdname_content.at(rdname_content.len() - 1) {
+                    if (val == ('\t' as u8)) || (val == ('\n' as u8)) || (val == (' ' as u8)) {
+                        rdname_content.pop().unwrap();
+                        continue 'a;
+                    }
+                }
+
+                break 'a;
+            }
+
+            Mountpoint::new(
+                Some(rdname_content.as_slice()),
+                b"/sysroot",
+                Some(b"bind"),
+                MountpointFlags::new(&[MountFlag::Bind]),
+                None,
+            )
+        }
+        Err(err) => {
+            unsafe {
+                libc::printf(
+                    b"Couldn't read rdname file: %d -- / will be the rootfs\n\0".as_ptr()
+                        as *const libc::c_char,
+                    err as libc::c_int,
+                )
+            };
+
+            Mountpoint::new(
+                Some(b"/"),
+                b"/sysroot",
+                Some(b"bind"),
+                MountpointFlags::new(&[MountFlag::Bind]),
+                None,
+            )
+        }
+    })
+    .unwrap_or_else(|err| unsafe {
         libc::printf(
-            b"Failed to parse configuration: %d\n\0".as_ptr() as *const libc::c_char,
+            b"Failed to create the mount object: %d\n\0".as_ptr() as *const libc::c_char,
             err as libc::c_int,
         );
-        libc::sleep(600);
-        libc::exit(1);
+        libc::exit(err);
+    })
+    .mount()
+    .unwrap_or_else(|err| unsafe {
+        libc::printf(
+            b"Failed to mount /sysroot: %d\n\0".as_ptr() as *const libc::c_char,
+            err as libc::c_int,
+        );
+        libc::exit(err);
     });
+
+    let config = match atombutter::read_whole_file(
+        atombutter::RDTAB_PATH,
+        atombutter::RDTAB_MAX_FILE_SIZE,
+    ) {
+        Ok(rdinit_content) => Config::new(rdinit_content).unwrap_or_else(|err| unsafe {
+            libc::printf(
+                b"Failed to parse configuration: %d\n\0".as_ptr() as *const libc::c_char,
+                err as libc::c_int,
+            );
+            libc::exit(1);
+        }),
+        Err(err) => unsafe {
+            libc::printf(
+                b"Failed to read configuration file: %d\n\0".as_ptr() as *const libc::c_char,
+                err as libc::c_int,
+            );
+            libc::exit(1);
+        },
+    };
 
     for mount in config.iter_mounts() {
         if let Err(err) = mount.mount() {
@@ -87,7 +150,6 @@ fn main() {
                         err as libc::c_int,
                     ),
                 };
-                libc::sleep(600);
                 libc::exit(1);
             }
         }
@@ -135,8 +197,5 @@ fn main() {
     }
 
     // If we ends up here let the user know about that as this shouldn't happen
-    unsafe {
-        libc::sleep(800);
-        libc::exit(1);
-    }
+    unsafe { libc::exit(1) }
 }

@@ -3,6 +3,7 @@ extern crate libc;
 use core::mem;
 use core::ptr;
 
+#[derive(Clone)]
 pub struct Vec<T> {
     ptr: *mut T,
     capacity: usize,
@@ -15,6 +16,21 @@ impl<T> Default for Vec<T> {
             ptr: ptr::null_mut(),
             capacity: 0,
             length: 0,
+        }
+    }
+}
+
+impl<T> Vec<T>
+where
+    T: Clone,
+{
+    pub fn at(&self, index: usize) -> Option<T> {
+        match index < self.len() {
+            true => match unsafe { self.ptr.add(index).as_ref() } {
+                Some(r) => Some(r.clone()),
+                None => None,
+            },
+            false => None,
         }
     }
 }
@@ -55,6 +71,31 @@ where
         }
 
         Ok(result)
+    }
+
+    pub fn prepend(&mut self, data: &[T]) -> Result<(), libc::c_int>
+    where
+        T: Copy,
+    {
+        let new_length = self.length + data.len();
+
+        while self.capacity < new_length {
+            self.resize()?
+        }
+
+        unsafe {
+            ptr::copy(self.ptr, self.ptr.add(data.len()), self.length);
+        }
+
+        for (i, &value) in data.iter().enumerate() {
+            unsafe {
+                ptr::write(self.ptr.add(i), value);
+            }
+        }
+
+        self.length = new_length;
+
+        Ok(())
     }
 }
 
@@ -145,14 +186,6 @@ impl<T> Vec<T> {
             capacity,
             length,
         })
-    }
-
-    pub fn at(&self, index: usize) -> Option<T> {
-        if index >= self.length {
-            return None;
-        }
-
-        Some(unsafe { ptr::read_unaligned(self.ptr.add(index)) })
     }
 
     pub fn empty(&self) -> bool {

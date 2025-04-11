@@ -11,12 +11,14 @@ pub mod switch_root;
 pub mod vector;
 
 pub const SYSROOT: &str = "/sysroot";
-pub const PUT_OLD: &str = "/sysroot/mnt";
 
 pub const INIT: &str = "/usr/lib/systemd/systemd";
 
-pub const CONFIG_FILE_PATH: &str = "/etc/rdtab";
-pub const MAX_CONFIG_FILE_SIZE: usize = 8192;
+pub const RDNAME_PATH: &str = "/etc/rdname";
+pub const RDNAME_MAX_FILE_SIZE: usize = 256;
+
+pub const RDTAB_PATH: &str = "/sysroot/etc/rdtab";
+pub const RDTAB_MAX_FILE_SIZE: usize = 16384;
 
 pub fn read_whole_file(
     path: &str,
