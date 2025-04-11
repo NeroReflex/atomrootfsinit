@@ -14,6 +14,8 @@ use atombutter::{
 fn main() {
     const SLASH: &str = "/";
 
+    unsafe { libc::printf(b"Starting AtomButter...\n\0".as_ptr() as *const libc::c_char) };
+
     /*
      * Work-around for kernel design: the kernel refuses MS_MOVE if any file systems are mounted
      * MS_SHARED. Hence remount them MS_PRIVATE here as a work-around.
@@ -48,6 +50,8 @@ fn main() {
 
     (match atombutter::read_whole_file(atombutter::RDNAME_PATH, atombutter::RDNAME_MAX_FILE_SIZE) {
         Ok(mut rdname_content) => {
+            unsafe { libc::printf(b"1\n\0".as_ptr() as *const libc::c_char) };
+
             rdname_content.push(0u8).unwrap_or_else(|err| unsafe {
                 libc::printf(
                     b"Failed to append NUL-terminator to rdname content %s: %d\n\0".as_ptr()
@@ -57,6 +61,9 @@ fn main() {
                 );
                 libc::exit(1);
             });
+
+            unsafe { libc::printf(b"2\n\0".as_ptr() as *const libc::c_char) };
+
             rdname_content
                 .prepend(b"/deployments/")
                 .unwrap_or_else(|err| unsafe {
@@ -68,25 +75,30 @@ fn main() {
                     );
                     libc::exit(1);
                 });
-
-            'a: loop {
+            unsafe { libc::printf(b"3\n\0".as_ptr() as *const libc::c_char) };
+            'trim: loop {
                 if let Some(val) = rdname_content.at(rdname_content.len() - 1) {
                     if (val == ('\t' as u8)) || (val == ('\n' as u8)) || (val == (' ' as u8)) {
                         rdname_content.pop().unwrap();
-                        continue 'a;
+                        continue 'trim;
                     }
                 }
 
-                break 'a;
+                break 'trim;
             }
+            unsafe { libc::printf(b"4\n\0".as_ptr() as *const libc::c_char) };
 
-            Mountpoint::new(
+            let dbg = Mountpoint::new(
                 Some(rdname_content.as_slice()),
                 b"/sysroot",
                 Some(b"bind"),
                 MountpointFlags::new(&[MountFlag::Bind]),
                 None,
-            )
+            );
+
+            unsafe { libc::printf(b"5\n\0".as_ptr() as *const libc::c_char) };
+
+            dbg
         }
         Err(err) => {
             unsafe {
