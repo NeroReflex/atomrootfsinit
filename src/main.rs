@@ -114,6 +114,8 @@ fn main() {
         libc::exit(err);
     });
 
+    unsafe { libc::printf(b"Reading configuration...\n\0".as_ptr() as *const libc::c_char) };
+
     let config = match atombutter::read_whole_file(
         atombutter::RDTAB_PATH,
         atombutter::RDTAB_MAX_FILE_SIZE,
@@ -197,5 +199,8 @@ fn main() {
     }
 
     // If we ends up here let the user know about that as this shouldn't happen
-    unsafe { libc::exit(1) }
+    unsafe {
+        libc::printf(b"An unrecognised error has happened\n\0".as_ptr() as *const libc::c_char);
+        libc::exit(1)
+    }
 }

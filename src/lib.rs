@@ -10,6 +10,8 @@ pub mod string;
 pub mod switch_root;
 pub mod vector;
 
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+
 pub const SYSROOT: &str = "/sysroot";
 
 pub const INIT: &str = "/usr/lib/systemd/systemd";
