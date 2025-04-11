@@ -13,13 +13,13 @@ impl Config {
         drop(content);
 
         for mount_entry_line in raw_data.iter() {
-            let mount_entry_params = match mount_entry_line.find('#' as u8) {
-                Some(f) => &mount_entry_line.as_slice()[..f],
-                None => mount_entry_line.as_slice(),
+            /*
+            let mount_entry_line = match mount_entry_line.split('#' as u8, true)?.at(0) {
+                Some(uncommented) => uncommented,
+                None => return Err(libc::EINVAL),
             };
-
-            let uncommented_mount_line = Vec::new(mount_entry_params)?;
-            let mount_entry_params = uncommented_mount_line.split(' ' as u8, false)?;
+            */
+            let mount_entry_params = mount_entry_line.split(' ' as u8, false)?;
 
             let src = match mount_entry_params.at(0) {
                 Some(str) => Vec::<u8>::new(str.as_slice())?,
