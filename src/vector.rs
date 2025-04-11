@@ -3,7 +3,6 @@ extern crate libc;
 use core::mem;
 use core::ptr;
 
-#[derive(Clone)]
 pub struct Vec<T> {
     ptr: *mut T,
     capacity: usize,
@@ -20,6 +19,27 @@ impl<T> Default for Vec<T> {
     }
 }
 
+impl<T> Clone for Vec<T>
+where
+    T: Clone,
+{
+    fn clone(&self) -> Self {
+        let length = self.length.clone();
+        let capacity = self.length.clone();
+        let ptr = unsafe { libc::malloc(capacity * mem::size_of::<T>()) as *mut T };
+
+        assert!(ptr != core::ptr::null_mut());
+
+        unsafe { ptr::copy(ptr, self.ptr, length) };
+
+        Self {
+            ptr,
+            capacity,
+            length,
+        }
+    }
+}
+
 impl<T> Vec<T>
 where
     T: Clone,
@@ -32,6 +52,29 @@ where
             },
             false => None,
         }
+    }
+
+    pub fn prepend(&mut self, data: &[T]) -> Result<(), libc::c_int>
+    where
+        T: Copy,
+    {
+        let new_length = self.length + data.len();
+
+        while self.capacity < new_length {
+            self.resize()?
+        }
+
+        unsafe { ptr::copy(self.ptr, self.ptr.add(data.len()), self.length) };
+
+        for (i, &value) in data.iter().enumerate() {
+            unsafe {
+                ptr::write(self.ptr.add(i), value.clone());
+            }
+        }
+
+        self.length = new_length;
+
+        Ok(())
     }
 }
 
@@ -71,31 +114,6 @@ where
         }
 
         Ok(result)
-    }
-
-    pub fn prepend(&mut self, data: &[T]) -> Result<(), libc::c_int>
-    where
-        T: Copy,
-    {
-        let new_length = self.length + data.len();
-
-        while self.capacity < new_length {
-            self.resize()?
-        }
-
-        unsafe {
-            ptr::copy(self.ptr, self.ptr.add(data.len()), self.length);
-        }
-
-        for (i, &value) in data.iter().enumerate() {
-            unsafe {
-                ptr::write(self.ptr.add(i), value);
-            }
-        }
-
-        self.length = new_length;
-
-        Ok(())
     }
 }
 
