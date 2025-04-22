@@ -1,11 +1,11 @@
 [package]
 name = "atombutter"
 authors = ["Denis Benato <benato.denis96@gmail.com>"]
-version = "0.4.0"
+version = "0.4.1"
 edition = "2021"
 
 [dependencies]
-libc = { version = "^0.2", features = [] }
+libc = { version = "*", features = [] }
 
 [profile.release]
 strip = "debuginfo"
