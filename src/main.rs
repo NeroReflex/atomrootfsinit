@@ -110,7 +110,7 @@ fn main() {
             match rdname_content.empty() {
                 true => Mountpoint::new(
                     Some(SLASH),
-                    "/sysroot",
+                    "/mnt",
                     Some("bind"),
                     MountpointFlags::new(&[MountFlag::Bind]),
                     None,
@@ -120,7 +120,7 @@ fn main() {
                         core::str::from_utf8(rdname_content.as_slice().unwrap_or(&[]))
                             .unwrap_or_else(|_| ""),
                     ),
-                    "/sysroot",
+                    "/mnt",
                     Some("bind"),
                     MountpointFlags::new(&[MountFlag::Bind]),
                     None,
@@ -138,7 +138,7 @@ fn main() {
 
             Mountpoint::new(
                 Some(SLASH),
-                "/sysroot",
+                "/mnt",
                 Some("bind"),
                 MountpointFlags::new(&[MountFlag::Bind]),
                 None,
@@ -156,7 +156,7 @@ fn main() {
     .mount()
     .unwrap_or_else(|err| unsafe {
         libc::printf(
-            b"Failed to mount /sysroot: %d\n\0".as_ptr() as *const libc::c_char,
+            b"Failed to mount /mnt: %d\n\0".as_ptr() as *const libc::c_char,
             err as libc::c_int,
         );
         libc::sleep(10);
@@ -204,14 +204,14 @@ fn main() {
     if let Err(err) = chdir(atombutter::SYSROOT) {
         unsafe {
             libc::printf(
-                b"Failed to chdir /sysroot: %d\n\0".as_ptr() as *const libc::c_char,
+                b"Failed to chdir /mnt: %d\n\0".as_ptr() as *const libc::c_char,
                 err as libc::c_int,
             );
         }
     } else if let Err(err) = pivot_root(".", ".") {
         unsafe {
             libc::printf(
-                b"Failed to pivot root to /sysroot: %d\n\0".as_ptr() as *const libc::c_char,
+                b"Failed to pivot root to /mnt: %d\n\0".as_ptr() as *const libc::c_char,
                 err as libc::c_int,
             );
         }

@@ -15,13 +15,13 @@ Because I was frustrated about the state of the art in embedded linux world.
 
 Start this software either symlinking it to /sbin/init to use kernel parameters *init=* or *initrd=* (in case you want to use this software on an initramfs).
 
-When this software starts it reads /etc/rdname: if that file is found it will read the first line (the *name* of the release) and mount /deployments/*name* to /sysroot. If that file is not found, or the first line is empty a bind mount of / to /sysroot will be performed.
+When this software starts it reads /etc/rdname: if that file is found it will read the first line (the *name* of the release) and mount /deployments/*name* to /mnt. If that file is not found, or the first line is empty a bind mount of / to /mnt will be performed.
 
-Regardless of what happened on the first step the /sysroot directory (that you _MUST_ create on the root of the booted filesystem) will be a mountpoint containing your new rootfs.
+Regardless of what happened on the first step the /mnt directory (that you _MUST_ create on the root of the booted filesystem) will be a mountpoint containing your new rootfs.
 
-The second step is reading the file /sysroot/etc/rdtab and mounting everything described in there.
+The second step is reading the file /mnt/etc/rdtab and mounting everything described in there.
 
-The third step is reading the file /sysroot/etc/rdinit: this is the executable that will called as part of the switch_root operation:
+The third step is reading the file /mnt/etc/rdinit: this is the executable that will called as part of the switch_root operation:
 usually this file is systemd.
 
 The last step is performing the switch_root operation that will start the real init replacing the current process (keeping the PID number).
