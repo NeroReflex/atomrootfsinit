@@ -201,6 +201,9 @@ fn main() {
         }
     }
 
+    // ensure memory is released before switch_root
+    drop(config);
+
     if let Err(err) = chdir(atomrootfsmgr::SYSROOT) {
         unsafe {
             libc::printf(
