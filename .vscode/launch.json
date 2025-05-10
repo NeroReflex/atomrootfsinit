@@ -7,16 +7,16 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug unit tests in library 'atombutter'",
+            "name": "Debug unit tests in library 'atomrootfsmgr'",
             "cargo": {
                 "args": [
                     "test",
                     "--no-run",
                     "--lib",
-                    "--package=atombutter"
+                    "--package=atomrootfsmgr"
                 ],
                 "filter": {
-                    "name": "atombutter",
+                    "name": "atomrootfsmgr",
                     "kind": "lib"
                 }
             },
@@ -26,15 +26,15 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug executable 'atombutter'",
+            "name": "Debug executable 'atomrootfsmgr'",
             "cargo": {
                 "args": [
                     "build",
-                    "--bin=atombutter",
-                    "--package=atombutter"
+                    "--bin=atomrootfsmgr",
+                    "--package=atomrootfsmgr"
                 ],
                 "filter": {
-                    "name": "atombutter",
+                    "name": "atomrootfsmgr",
                     "kind": "bin"
                 }
             },
@@ -44,16 +44,16 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug unit tests in executable 'atombutter'",
+            "name": "Debug unit tests in executable 'atomrootfsmgr'",
             "cargo": {
                 "args": [
                     "test",
                     "--no-run",
-                    "--bin=atombutter",
-                    "--package=atombutter"
+                    "--bin=atomrootfsmgr",
+                    "--package=atomrootfsmgr"
                 ],
                 "filter": {
-                    "name": "atombutter",
+                    "name": "atomrootfsmgr",
                     "kind": "bin"
                 }
             },

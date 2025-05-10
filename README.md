@@ -1,4 +1,4 @@
-# AtomButter
+# atomrootfsmgr
 
 This tool mounts the rootfs and calls the init program on the mounted system.
 
@@ -31,7 +31,7 @@ The last step is performing the switch_root operation that will start the real i
 This software is used to update the running linux without affecting it in any way: everything will happen at the next boot!
 
 You can choose between these layouts:
-- having a separate kernel+modules+AtomButter partition that will be the equivalent of initramfs in case you don't want to link every required modules into vmlinux or your primary root is encrypted
+- having a separate kernel+modules+atomrootfsmgr partition that will be the equivalent of initramfs in case you don't want to link every required modules into vmlinux or your primary root is encrypted
 - having a non-btrfs rootfs that has kernel+modules and userspace separate
 - having a big btrfs rootfs that holds everything
 

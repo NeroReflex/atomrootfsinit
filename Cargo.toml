@@ -1,5 +1,5 @@
 [package]
-name = "atombutter"
+name = "atomrootfsmgr"
 authors = ["Denis Benato <benato.denis96@gmail.com>"]
 version = "0.4.1"
 edition = "2021"
@@ -16,10 +16,11 @@ panic = "unwind"
 license-file = ["LICENSE.md", "4"]
 extended-description = """\
 An init program to mount rootfs before transferring process to \
-systemd or any other deamon."""
+systemd or any other deamon to allow easy atomic updates of a \
+root filesystem without using A/B partitioning."""
 depends = "$auto"
 section = "utility"
 priority = "optional"
 assets = [
-    ["target/release/atombutter", "usr/bin/", "755"],
+    ["target/release/atomrootfsmgr", "usr/bin/", "755"],
 ]
