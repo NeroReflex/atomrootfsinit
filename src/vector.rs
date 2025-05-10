@@ -24,11 +24,11 @@ where
     T: Clone,
 {
     fn clone(&self) -> Self {
-        let length = self.length.clone();
-        let capacity = self.length.clone();
+        let length = self.length;
+        let capacity = self.length;
         let ptr = unsafe { libc::malloc(capacity * mem::size_of::<T>()) as *mut T };
 
-        assert!(ptr != core::ptr::null_mut());
+        assert!(!ptr.is_null());
 
         unsafe { ptr::copy(ptr, self.ptr, length) };
 
@@ -46,10 +46,7 @@ where
 {
     pub fn at(&self, index: usize) -> Option<T> {
         match index < self.len() {
-            true => match unsafe { self.ptr.add(index).as_ref() } {
-                Some(r) => Some(r.clone()),
-                None => None,
-            },
+            true => unsafe { self.ptr.add(index).as_ref() }.cloned(),
             false => None,
         }
     }
@@ -68,7 +65,7 @@ where
 
         for (i, &value) in data.iter().enumerate() {
             unsafe {
-                ptr::write(self.ptr.add(i), value.clone());
+                ptr::write(self.ptr.add(i), value);
             }
         }
 
@@ -178,7 +175,7 @@ impl<T> Vec<T> {
 
     pub fn new(elements: &[T]) -> Result<Vec<T>, libc::c_int> {
         let length = elements.len();
-        let ptr = unsafe { libc::malloc(length * mem::size_of::<T>()) as *mut T };
+        let ptr = unsafe { libc::malloc(core::mem::size_of_val(elements)) as *mut T };
         if ptr.is_null() {
             return Err(libc::ENOMEM);
         }

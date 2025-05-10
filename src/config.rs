@@ -11,7 +11,7 @@ fn serialized_flags_split(
     let mut flags = MountpointFlags::default();
     let mut data = Vec::<u8>::default();
 
-    for flag in serialized_flags.split(',').into_iter() {
+    for flag in serialized_flags.split(',') {
         match flag {
             "rw" => {}
             "nodev" => flags.set(MountFlag::NoDev),
@@ -27,13 +27,13 @@ fn serialized_flags_split(
             "bind" => flags.set(MountFlag::Bind),
             "ro" => flags.set(MountFlag::ReadOnly),
             flg => {
-                for d in flg.as_bytes().into_iter() {
+                for d in flg.as_bytes().iter() {
                     data.push(*d)?;
                 }
             }
         }
 
-        data.push(',' as u8)?;
+        data.push(b',')?;
     }
 
     // mount flags are given as C string to the kernel: ensure it is NULL-terminated
@@ -54,7 +54,7 @@ impl Config {
     pub fn new(content: Vec<u8>) -> Result<Self, libc::c_int> {
         let mut mounts = Vec::<Mountpoint>::default();
 
-        let raw_data = content.split('\n' as u8, false)?;
+        let raw_data = content.split(b'\n', false)?;
         drop(content);
 
         for mount_entry_line in raw_data.iter() {

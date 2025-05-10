@@ -146,7 +146,7 @@ pub struct Mountpoint {
 
 impl Drop for Mountpoint {
     fn drop(&mut self) {
-        if self.data != core::ptr::null_mut() {
+        if !self.data.is_null() {
             unsafe { libc::free(self.data as *mut libc::c_void) }
         }
     }

@@ -21,28 +21,28 @@ fn main() {
      * https://bugzilla.redhat.com/show_bug.cgi?id=847418
      */
     #[cfg(target_os = "linux")]
-        let _ = Mountpoint::new(
-            None,
-            SLASH,
-            None,
-            MountpointFlags::new(&[MountFlag::Recursive, MountFlag::Private]),
-            None,
-        )
-        .unwrap_or_else(|err| unsafe {
-            libc::printf(
-                b"Failed to create the mount object: %d\n\0".as_ptr() as *const libc::c_char,
-                err as libc::c_int,
-            );
-            libc::sleep(10);
-            libc::exit(err);
-        })
-        .mount()
-        .unwrap_or_else(|err| unsafe {
-            libc::printf(
-                b"Failed to remount / as private: %d\n\0".as_ptr() as *const libc::c_char,
-                err as libc::c_int,
-            );
-        });
+    Mountpoint::new(
+        None,
+        SLASH,
+        None,
+        MountpointFlags::new(&[MountFlag::Recursive, MountFlag::Private]),
+        None,
+    )
+    .unwrap_or_else(|err| unsafe {
+        libc::printf(
+            b"Failed to create the mount object: %d\n\0".as_ptr() as *const libc::c_char,
+            err as libc::c_int,
+        );
+        libc::sleep(10);
+        libc::exit(err);
+    })
+    .mount()
+    .unwrap_or_else(|err| unsafe {
+        libc::printf(
+            b"Failed to remount / as private: %d\n\0".as_ptr() as *const libc::c_char,
+            err as libc::c_int,
+        );
+    });
 
     unsafe {
         // Create a signal set and fill it
@@ -50,10 +50,17 @@ fn main() {
         libc::sigfillset(&mut set);
 
         // Block all signals
-        libc::sigprocmask(libc::SIG_BLOCK, &set, 0 as *mut libc::sigset_t);
+        libc::sigprocmask(
+            libc::SIG_BLOCK,
+            &set,
+            std::ptr::null_mut::<libc::sigset_t>(),
+        );
     }
 
-    (match atomrootfsmgr::read_whole_file(atomrootfsmgr::RDNAME_PATH, atomrootfsmgr::RDNAME_MAX_FILE_SIZE) {
+    (match atomrootfsmgr::read_whole_file(
+        atomrootfsmgr::RDNAME_PATH,
+        atomrootfsmgr::RDNAME_MAX_FILE_SIZE,
+    ) {
         Ok(mut rdname_content) => {
             rdname_content.push(0u8).unwrap_or_else(|err| unsafe {
                 libc::printf(
@@ -90,7 +97,7 @@ fn main() {
                 }
 
                 if let Some(val) = rdname_content.at(curr_len - 1) {
-                    if (val == ('\t' as u8)) || (val == ('\n' as u8)) || (val == (' ' as u8)) {
+                    if (val == b'\t') || (val == b'\n') || (val == b' ') {
                         match rdname_content.pop() {
                             Some(ch) => unsafe {
                                 libc::printf(
@@ -118,7 +125,7 @@ fn main() {
                 false => Mountpoint::new(
                     Some(
                         core::str::from_utf8(rdname_content.as_slice().unwrap_or(&[]))
-                            .unwrap_or_else(|_| ""),
+                            .unwrap_or(""),
                     ),
                     "/mnt",
                     Some("bind"),

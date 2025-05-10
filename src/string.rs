@@ -6,10 +6,8 @@ pub struct CStr {
 
 impl Drop for CStr {
     fn drop(&mut self) {
-        unsafe {
-            if self.data != core::ptr::null_mut() {
-                libc::free(self.data as *mut libc::c_void)
-            }
+        if !self.data.is_null() {
+            unsafe { libc::free(self.data as *mut libc::c_void) }
         }
     }
 }
@@ -40,20 +38,14 @@ pub(crate) fn search_in_slice<T>(slice: &[T], element: &T) -> Option<usize>
 where
     T: PartialEq,
 {
-    for i in 0..slice.len() {
-        if slice[i] == *element {
-            return Some(i);
-        }
-    }
-
-    None
+    (0..slice.len()).find(|&i| slice[i] == *element)
 }
 
 impl TryFrom<&[u8]> for CStr {
     type Error = libc::c_int;
 
     fn try_from(str: &[u8]) -> Result<Self, Self::Error> {
-        let true_str_len = search_in_slice(str, &('\0' as u8)).unwrap_or(str.len());
+        let true_str_len = search_in_slice(str, &b'\0').unwrap_or(str.len());
 
         let alloc_sz = true_str_len + 1;
         let data = unsafe { libc::malloc(alloc_sz) } as *mut libc::c_char;
