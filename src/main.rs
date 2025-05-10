@@ -2,7 +2,7 @@
 
 extern crate libc;
 
-use atomrootfsmgr::{
+use atomrootfsinit::{
     change_dir::chdir,
     config::Config,
     mount::{direct_detach, MountFlag, Mountpoint, MountpointFlags},
@@ -57,9 +57,9 @@ fn main() {
         );
     }
 
-    (match atomrootfsmgr::read_whole_file(
-        atomrootfsmgr::RDNAME_PATH,
-        atomrootfsmgr::RDNAME_MAX_FILE_SIZE,
+    (match atomrootfsinit::read_whole_file(
+        atomrootfsinit::RDNAME_PATH,
+        atomrootfsinit::RDNAME_MAX_FILE_SIZE,
     ) {
         Ok(mut rdname_content) => {
             rdname_content.push(0u8).unwrap_or_else(|err| unsafe {
@@ -172,9 +172,9 @@ fn main() {
 
     unsafe { libc::printf(b"Reading configuration...\n\0".as_ptr() as *const libc::c_char) };
 
-    let config = match atomrootfsmgr::read_whole_file(
-        atomrootfsmgr::RDTAB_PATH,
-        atomrootfsmgr::RDTAB_MAX_FILE_SIZE,
+    let config = match atomrootfsinit::read_whole_file(
+        atomrootfsinit::RDTAB_PATH,
+        atomrootfsinit::RDTAB_MAX_FILE_SIZE,
     ) {
         Ok(rdinit_content) => Config::new(rdinit_content).unwrap_or_else(|err| unsafe {
             libc::printf(
@@ -211,7 +211,7 @@ fn main() {
     // ensure memory is released before switch_root
     drop(config);
 
-    if let Err(err) = chdir(atomrootfsmgr::SYSROOT) {
+    if let Err(err) = chdir(atomrootfsinit::SYSROOT) {
         unsafe {
             libc::printf(
                 b"Failed to chdir /mnt: %d\n\0".as_ptr() as *const libc::c_char,
@@ -239,7 +239,7 @@ fn main() {
                 err as libc::c_int,
             );
         }
-    } else if let Err(err) = execute(atomrootfsmgr::INIT) {
+    } else if let Err(err) = execute(atomrootfsinit::INIT) {
         unsafe {
             libc::printf(
                 b"Failed to execve the init program: %d\n\0".as_ptr() as *const libc::c_char,

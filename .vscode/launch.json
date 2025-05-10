@@ -7,16 +7,16 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug unit tests in library 'atomrootfsmgr'",
+            "name": "Debug unit tests in library 'atomrootfsinit'",
             "cargo": {
                 "args": [
                     "test",
                     "--no-run",
                     "--lib",
-                    "--package=atomrootfsmgr"
+                    "--package=atomrootfsinit"
                 ],
                 "filter": {
-                    "name": "atomrootfsmgr",
+                    "name": "atomrootfsinit",
                     "kind": "lib"
                 }
             },
@@ -26,15 +26,15 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug executable 'atomrootfsmgr'",
+            "name": "Debug executable 'atomrootfsinit'",
             "cargo": {
                 "args": [
                     "build",
-                    "--bin=atomrootfsmgr",
-                    "--package=atomrootfsmgr"
+                    "--bin=atomrootfsinit",
+                    "--package=atomrootfsinit"
                 ],
                 "filter": {
-                    "name": "atomrootfsmgr",
+                    "name": "atomrootfsinit",
                     "kind": "bin"
                 }
             },
@@ -44,16 +44,16 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug unit tests in executable 'atomrootfsmgr'",
+            "name": "Debug unit tests in executable 'atomrootfsinit'",
             "cargo": {
                 "args": [
                     "test",
                     "--no-run",
-                    "--bin=atomrootfsmgr",
-                    "--package=atomrootfsmgr"
+                    "--bin=atomrootfsinit",
+                    "--package=atomrootfsinit"
                 ],
                 "filter": {
-                    "name": "atomrootfsmgr",
+                    "name": "atomrootfsinit",
                     "kind": "bin"
                 }
             },

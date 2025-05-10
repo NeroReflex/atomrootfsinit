@@ -1,5 +1,5 @@
 [package]
-name = "atomrootfsmgr"
+name = "atomrootfsinit"
 authors = ["Denis Benato <benato.denis96@gmail.com>"]
 version = "0.4.2"
 edition = "2021"
@@ -22,5 +22,5 @@ depends = "$auto"
 section = "utility"
 priority = "optional"
 assets = [
-    ["target/release/atomrootfsmgr", "usr/bin/", "755"],
+    ["target/release/atomrootfsinit", "usr/bin/", "755"],
 ]
