@@ -14,10 +14,13 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub const SYSROOT: &str = "/mnt";
 
-pub const INIT: &str = "/usr/lib/systemd/systemd";
+pub const SYSTEMD_INIT: &str = "/usr/lib/systemd/systemd";
 
 pub const RDNAME_PATH: &str = "/etc/rdname";
 pub const RDNAME_MAX_FILE_SIZE: usize = 256;
+
+pub const RDEXEC_PATH: &str = "/etc/rdexec";
+pub const RDEXEC_MAX_FILE_SIZE: usize = 256;
 
 pub const RDTAB_PATH: &str = "/mnt/etc/rdtab";
 pub const RDTAB_MAX_FILE_SIZE: usize = 16384;

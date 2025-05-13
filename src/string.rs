@@ -32,6 +32,13 @@ impl CStr {
     pub fn inner(&self) -> *const libc::c_char {
         self.data
     }
+
+    pub fn as_str(&self) -> &str {
+        let slice =
+            unsafe { core::slice::from_raw_parts(self.inner() as *const u8, self.strlen()) };
+
+        unsafe { core::str::from_utf8_unchecked(slice) }
+    }
 }
 
 pub(crate) fn search_in_slice<T>(slice: &[T], element: &T) -> Option<usize>

@@ -6,6 +6,7 @@ use atomrootfsinit::{
     change_dir::chdir,
     config::Config,
     mount::{direct_detach, MountFlag, Mountpoint, MountpointFlags},
+    string::CStr,
     switch_root::{execute, pivot_root},
 };
 
@@ -170,6 +171,35 @@ fn main() {
         libc::exit(err);
     });
 
+    let init = (match atomrootfsinit::read_whole_file(
+        atomrootfsinit::RDEXEC_PATH,
+        atomrootfsinit::RDEXEC_MAX_FILE_SIZE,
+    ) {
+        Ok(rdinit_content) => CStr::new(
+            core::str::from_utf8(rdinit_content.as_slice().unwrap_or(&[]))
+                .unwrap_or(atomrootfsinit::SYSTEMD_INIT),
+        ),
+        Err(err) => {
+            unsafe {
+                libc::printf(
+                    b"Failed to open the rdinit file: %d -- systemd will be used\n\0".as_ptr()
+                        as *const libc::c_char,
+                    err as libc::c_int,
+                );
+            }
+
+            CStr::new(atomrootfsinit::SYSTEMD_INIT)
+        }
+    })
+    .unwrap_or_else(|err| unsafe {
+        libc::printf(
+            b"Failed to allocate init: %d\n\0".as_ptr() as *const libc::c_char,
+            err as libc::c_int,
+        );
+        libc::sleep(10);
+        libc::exit(err);
+    });
+
     unsafe { libc::printf(b"Reading configuration...\n\0".as_ptr() as *const libc::c_char) };
 
     let config = match atomrootfsinit::read_whole_file(
@@ -239,10 +269,11 @@ fn main() {
                 err as libc::c_int,
             );
         }
-    } else if let Err(err) = execute(atomrootfsinit::INIT) {
+    } else if let Err(err) = execute(init.as_str()) {
         unsafe {
             libc::printf(
-                b"Failed to execve the init program: %d\n\0".as_ptr() as *const libc::c_char,
+                b"Failed to execve the init program %s: %d\n\0".as_ptr() as *const libc::c_char,
+                init.inner(),
                 err as libc::c_int,
             );
         }
