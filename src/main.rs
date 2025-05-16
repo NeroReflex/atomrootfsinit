@@ -294,6 +294,8 @@ fn main() {
         },
     };
 
+    // TODO: mount proc into /proc as rw so that /proc/cmdline and /proc/mountpoints will be accessible
+
     for mount in config.iter_mounts() {
         let rootfs = match mount.src() {
             Some(src) => match src {
