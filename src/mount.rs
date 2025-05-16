@@ -200,9 +200,15 @@ impl Mountpoint {
         })
     }
 
-    pub fn mount(&self) -> Result<(), libc::c_int> {
+    pub fn mount(&self, rootdev: Option<CStr>) -> Result<(), libc::c_int> {
         let src = match &self.src {
-            Some(ptr) => ptr.inner(),
+            Some(ptr) => match ptr.as_str() {
+                "rootdev" => match &rootdev {
+                    Some(rd) => rd.inner(),
+                    None => core::ptr::null() as *const libc::c_char,
+                },
+                _ => ptr.inner(),
+            },
             None => core::ptr::null() as *const libc::c_char,
         };
 
@@ -236,6 +242,18 @@ impl Mountpoint {
         };
 
         unsafe { core::str::from_utf8_unchecked(slice) }
+    }
+
+    pub fn src(&self) -> Option<&str> {
+        match &self.src {
+            Some(src) => Some(unsafe {
+                core::str::from_utf8_unchecked(core::slice::from_raw_parts(
+                    src.inner() as *const u8,
+                    src.strlen(),
+                ))
+            }),
+            None => None,
+        }
     }
 
     pub fn data(&self) -> Option<&[u8]> {

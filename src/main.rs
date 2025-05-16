@@ -37,7 +37,7 @@ fn main() {
         libc::sleep(10);
         libc::exit(err);
     })
-    .mount()
+    .mount(None)
     .unwrap_or_else(|err| unsafe {
         libc::printf(
             b"Failed to remount / as private: %d\n\0".as_ptr() as *const libc::c_char,
@@ -161,7 +161,7 @@ fn main() {
         libc::sleep(10);
         libc::exit(err);
     })
-    .mount()
+    .mount(None)
     .unwrap_or_else(|err| unsafe {
         libc::printf(
             b"Failed to mount /mnt: %d\n\0".as_ptr() as *const libc::c_char,
@@ -225,7 +225,61 @@ fn main() {
     };
 
     for mount in config.iter_mounts() {
-        if let Err(err) = mount.mount() {
+        let rootfs = match mount.src() {
+            Some(src) => match src {
+                "rootdev" => match atomrootfsinit::read_whole_file(
+                    "/proc/cmdline",
+                    atomrootfsinit::RDTAB_MAX_FILE_SIZE,
+                ) {
+                    Ok(cmdline) => match core::str::from_utf8(cmdline.as_slice().unwrap()) {
+                        Ok(cmdline_str) => {
+                            let mut rootdev = None;
+                            for param in cmdline_str.split_ascii_whitespace() {
+                                if param.starts_with("root=") {
+                                    rootdev =
+                                        Some(CStr::new(&param[5..param.len()]).unwrap_or_else(
+                                            |err| unsafe {
+                                                libc::printf(
+                                                    b"Failed to store root device name: %d\n\0"
+                                                        .as_ptr()
+                                                        as *const libc::c_char,
+                                                    err as libc::c_int,
+                                                );
+                                                libc::sleep(10);
+                                                libc::exit(err);
+                                            },
+                                        ));
+
+                                    break;
+                                }
+                            }
+
+                            rootdev
+                        }
+                        Err(_err) => unsafe {
+                            libc::printf(b"Failed to convert cmdline to utf-8\n\0".as_ptr()
+                                as *const libc::c_char);
+                            libc::sleep(10);
+
+                            None
+                        },
+                    },
+                    Err(err) => unsafe {
+                        libc::printf(
+                            b"Failed to read kernel cmdline: %d\n\0".as_ptr()
+                                as *const libc::c_char,
+                            err as libc::c_int,
+                        );
+
+                        None
+                    },
+                },
+                _ => None,
+            },
+            None => None,
+        };
+
+        if let Err(err) = mount.mount(rootfs) {
             unsafe {
                 libc::printf(
                     b"Failed to mount %s: %d\n\0".as_ptr() as *const libc::c_char,
