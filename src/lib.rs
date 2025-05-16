@@ -5,6 +5,7 @@ extern crate libc;
 
 pub mod change_dir;
 pub mod config;
+pub mod link;
 pub mod mount;
 pub mod string;
 pub mod switch_root;

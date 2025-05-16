@@ -5,10 +5,80 @@ extern crate libc;
 use atomrootfsinit::{
     change_dir::chdir,
     config::Config,
+    link::create_hardlink,
     mount::{direct_detach, MountFlag, Mountpoint, MountpointFlags},
     string::CStr,
     switch_root::{execute, pivot_root},
 };
+
+fn find_dev_from_mountpoint(mount_point: &str) -> Result<Option<CStr>, libc::c_int> {
+    // Open /proc/mounts to find the device associated with /mnt
+    let mountpoints = atomrootfsinit::read_whole_file("/proc/mounts", 16384)?;
+    let raw_data = mountpoints.split(b'\n', false).unwrap();
+    for mount_entry_line in raw_data.iter() {
+        match core::str::from_utf8(mount_entry_line.as_slice().unwrap()) {
+            Ok(line) => {
+                let parts: Vec<&str> = line.split_whitespace().collect();
+                if parts.len() >= 2 && parts[1] == mount_point {
+                    return Ok(Some(CStr::new(parts[0])?));
+                }
+            }
+            Err(_err) => unsafe {
+                libc::printf(
+                    b"Failed converting mount entry line to utf-8: ignoring the line\n\0".as_ptr()
+                        as *const libc::c_char,
+                );
+            },
+        }
+    }
+
+    Ok(None)
+}
+
+fn read_rootdev() -> Option<CStr> {
+    match atomrootfsinit::read_whole_file("/proc/cmdline", atomrootfsinit::RDTAB_MAX_FILE_SIZE) {
+        Ok(cmdline) => match core::str::from_utf8(cmdline.as_slice().unwrap()) {
+            Ok(cmdline_str) => {
+                let mut rootdev = None;
+                for param in cmdline_str.split_ascii_whitespace() {
+                    if param.starts_with("root=") {
+                        rootdev = Some(CStr::new(&param[5..param.len()]).unwrap_or_else(
+                            |err| unsafe {
+                                libc::printf(
+                                    b"Failed to store root device name: %d\n\0".as_ptr()
+                                        as *const libc::c_char,
+                                    err as libc::c_int,
+                                );
+                                libc::sleep(10);
+                                libc::exit(err);
+                            },
+                        ));
+
+                        break;
+                    }
+                }
+
+                rootdev
+            }
+            Err(_err) => unsafe {
+                libc::printf(
+                    b"Failed to convert cmdline to utf-8\n\0".as_ptr() as *const libc::c_char
+                );
+                libc::sleep(10);
+
+                None
+            },
+        },
+        Err(err) => unsafe {
+            libc::printf(
+                b"Failed to read kernel cmdline: %d\n\0".as_ptr() as *const libc::c_char,
+                err as libc::c_int,
+            );
+
+            None
+        },
+    }
+}
 
 #[no_mangle]
 #[inline(never)]
@@ -227,53 +297,7 @@ fn main() {
     for mount in config.iter_mounts() {
         let rootfs = match mount.src() {
             Some(src) => match src {
-                "rootdev" => match atomrootfsinit::read_whole_file(
-                    "/proc/cmdline",
-                    atomrootfsinit::RDTAB_MAX_FILE_SIZE,
-                ) {
-                    Ok(cmdline) => match core::str::from_utf8(cmdline.as_slice().unwrap()) {
-                        Ok(cmdline_str) => {
-                            let mut rootdev = None;
-                            for param in cmdline_str.split_ascii_whitespace() {
-                                if param.starts_with("root=") {
-                                    rootdev =
-                                        Some(CStr::new(&param[5..param.len()]).unwrap_or_else(
-                                            |err| unsafe {
-                                                libc::printf(
-                                                    b"Failed to store root device name: %d\n\0"
-                                                        .as_ptr()
-                                                        as *const libc::c_char,
-                                                    err as libc::c_int,
-                                                );
-                                                libc::sleep(10);
-                                                libc::exit(err);
-                                            },
-                                        ));
-
-                                    break;
-                                }
-                            }
-
-                            rootdev
-                        }
-                        Err(_err) => unsafe {
-                            libc::printf(b"Failed to convert cmdline to utf-8\n\0".as_ptr()
-                                as *const libc::c_char);
-                            libc::sleep(10);
-
-                            None
-                        },
-                    },
-                    Err(err) => unsafe {
-                        libc::printf(
-                            b"Failed to read kernel cmdline: %d\n\0".as_ptr()
-                                as *const libc::c_char,
-                            err as libc::c_int,
-                        );
-
-                        None
-                    },
-                },
+                "rootdev" => read_rootdev(),
                 _ => None,
             },
             None => None,
@@ -295,7 +319,38 @@ fn main() {
     // ensure memory is released before switch_root
     drop(config);
 
-    if let Err(err) = chdir(atomrootfsinit::SYSROOT) {
+    // link /dev/root to the root device if one is specified in kernel cmdline and proc is mounted
+    let rootdev = match read_rootdev() {
+        Some(rootdev) => rootdev,
+        None => match find_dev_from_mountpoint(atomrootfsinit::SYSROOT) {
+            Ok(rootdev) => match rootdev {
+                Some(rootdev) => rootdev,
+                None => unsafe {
+                    libc::printf(b"No root device specified\n\0".as_ptr() as *const libc::c_char);
+                    libc::sleep(10);
+                    libc::exit(libc::ENODEV);
+                },
+            },
+            Err(err) => unsafe {
+                libc::printf(
+                    b"Failed to get root device: %d\n\0".as_ptr() as *const libc::c_char,
+                    err as libc::c_int,
+                );
+                libc::sleep(10);
+                libc::exit(err);
+            },
+        },
+    };
+
+    if let Err(err) = create_hardlink(rootdev.as_str(), "/dev/root") {
+        unsafe {
+            libc::printf(
+                b"Failed to create /dev/root link to root device: %d\n\0".as_ptr()
+                    as *const libc::c_char,
+                err as libc::c_int,
+            );
+        }
+    } else if let Err(err) = chdir(atomrootfsinit::SYSROOT) {
         unsafe {
             libc::printf(
                 b"Failed to chdir /mnt: %d\n\0".as_ptr() as *const libc::c_char,
