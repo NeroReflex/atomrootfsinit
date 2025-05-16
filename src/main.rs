@@ -320,7 +320,7 @@ fn main() {
         Some("proc"),
         "/proc",
         Some("proc"),
-        MountpointFlags::new(&[MountFlag::Private]),
+        MountpointFlags::new(&[]),
         None,
     )
     .unwrap_or_else(|err| {
