@@ -10,7 +10,7 @@ libc = { version = "*", features = [] }
 [profile.release]
 strip = "debuginfo"
 lto = "thin"
-panic = "unwind"
+panic = "abort"
 
 [package.metadata.deb]
 license-file = ["LICENSE.md", "4"]
