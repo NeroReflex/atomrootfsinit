@@ -315,7 +315,32 @@ fn main() {
         }
     };
 
-    // TODO: mount proc into /proc as rw so that /proc/cmdline and /proc/mountpoints will be accessible
+    // mount proc into /proc as rw so that /proc/cmdline and /proc/mountpoints will be accessible
+    Mountpoint::new(
+        Some("proc"),
+        "/proc",
+        Some("proc"),
+        MountpointFlags::new(&[MountFlag::Private]),
+        None,
+    )
+    .unwrap_or_else(|err| {
+        unsafe {
+            libc::printf(
+                b"Failed to create the mount object for /proc: %d\n\0".as_ptr() as *const libc::c_char,
+                err as libc::c_int,
+            );
+        }
+        exit_error(err);
+
+        unreachable!()
+    })
+    .mount(None)
+    .unwrap_or_else(|err| unsafe {
+        libc::printf(
+            b"Failed to mount /proc as private: %d\n\0".as_ptr() as *const libc::c_char,
+            err as libc::c_int,
+        );
+    });
 
     for mount in config.iter_mounts() {
         let rootfs = match mount.src() {
