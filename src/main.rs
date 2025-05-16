@@ -99,13 +99,16 @@ fn main() {
         MountpointFlags::new(&[MountFlag::Recursive, MountFlag::Private]),
         None,
     )
-    .unwrap_or_else(|err| unsafe {
-        libc::printf(
-            b"Failed to create the mount object: %d\n\0".as_ptr() as *const libc::c_char,
-            err as libc::c_int,
-        );
-        libc::sleep(10);
-        libc::exit(err);
+    .unwrap_or_else(|err| {
+        unsafe {
+            libc::printf(
+                b"Failed to create the mount object: %d\n\0".as_ptr() as *const libc::c_char,
+                err as libc::c_int,
+            );
+        }
+        exit_error(err);
+
+        unreachable!()
     })
     .mount(None)
     .unwrap_or_else(|err| unsafe {
@@ -133,28 +136,34 @@ fn main() {
         atomrootfsinit::RDNAME_MAX_FILE_SIZE,
     ) {
         Ok(mut rdname_content) => {
-            rdname_content.push(0u8).unwrap_or_else(|err| unsafe {
-                libc::printf(
-                    b"Failed to append NUL-terminator to rdname content %s: %d\n\0".as_ptr()
-                        as *const libc::c_char,
-                    rdname_content.as_slice(),
-                    err as libc::c_int,
-                );
-                libc::sleep(10);
-                libc::exit(err);
-            });
-
-            rdname_content
-                .prepend(b"/deployments/")
-                .unwrap_or_else(|err| unsafe {
+            rdname_content.push(0u8).unwrap_or_else(|err| {
+                unsafe {
                     libc::printf(
-                        b"Failed to get the temporary path to the deployment %s: %d\n\0".as_ptr()
+                        b"Failed to append NUL-terminator to rdname content %s: %d\n\0".as_ptr()
                             as *const libc::c_char,
                         rdname_content.as_slice(),
                         err as libc::c_int,
                     );
-                    libc::sleep(10);
-                    libc::exit(err);
+                }
+                exit_error(err);
+
+                unreachable!()
+            });
+
+            rdname_content
+                .prepend(b"/deployments/")
+                .unwrap_or_else(|err| {
+                    unsafe {
+                        libc::printf(
+                            b"Failed to get the temporary path to the deployment %s: %d\n\0"
+                                .as_ptr() as *const libc::c_char,
+                            rdname_content.as_slice(),
+                            err as libc::c_int,
+                        );
+                    }
+                    exit_error(err);
+
+                    unreachable!()
                 });
 
             'trim: loop {
@@ -223,22 +232,28 @@ fn main() {
             )
         }
     })
-    .unwrap_or_else(|err| unsafe {
-        libc::printf(
-            b"Failed to create the mount object: %d\n\0".as_ptr() as *const libc::c_char,
-            err as libc::c_int,
-        );
-        libc::sleep(10);
-        libc::exit(err);
+    .unwrap_or_else(|err| {
+        unsafe {
+            libc::printf(
+                b"Failed to create the mount object: %d\n\0".as_ptr() as *const libc::c_char,
+                err as libc::c_int,
+            );
+        }
+        exit_error(err);
+
+        unreachable!()
     })
     .mount(None)
-    .unwrap_or_else(|err| unsafe {
-        libc::printf(
-            b"Failed to mount /mnt: %d\n\0".as_ptr() as *const libc::c_char,
-            err as libc::c_int,
-        );
-        libc::sleep(10);
-        libc::exit(err);
+    .unwrap_or_else(|err| {
+        unsafe {
+            libc::printf(
+                b"Failed to mount /mnt: %d\n\0".as_ptr() as *const libc::c_char,
+                err as libc::c_int,
+            );
+        }
+        exit_error(err);
+
+        unreachable!()
     });
 
     let init = (match atomrootfsinit::read_whole_file(
@@ -250,6 +265,7 @@ fn main() {
                 .unwrap_or(atomrootfsinit::SYSTEMD_INIT),
         ),
         Err(err) => {
+            #[cfg(debug_assertions)]
             unsafe {
                 libc::printf(
                     b"Failed to open the rdinit file: %d -- systemd will be used\n\0".as_ptr()
@@ -261,37 +277,42 @@ fn main() {
             CStr::new(atomrootfsinit::SYSTEMD_INIT)
         }
     })
-    .unwrap_or_else(|err| unsafe {
-        libc::printf(
-            b"Failed to allocate init: %d\n\0".as_ptr() as *const libc::c_char,
-            err as libc::c_int,
-        );
-        libc::sleep(10);
-        libc::exit(err);
-    });
+    .unwrap_or_else(|err| {
+        unsafe {
+            libc::printf(
+                b"Failed to allocate init: %d\n\0".as_ptr() as *const libc::c_char,
+                err as libc::c_int,
+            );
+        }
 
-    unsafe { libc::printf(b"Reading configuration...\n\0".as_ptr() as *const libc::c_char) };
+        exit_error(err);
+
+        unreachable!()
+    });
 
     let config = match atomrootfsinit::read_whole_file(
         atomrootfsinit::RDTAB_PATH,
         atomrootfsinit::RDTAB_MAX_FILE_SIZE,
     ) {
-        Ok(rdinit_content) => Config::new(rdinit_content).unwrap_or_else(|err| unsafe {
-            libc::printf(
-                b"Failed to parse configuration: %d\n\0".as_ptr() as *const libc::c_char,
-                err as libc::c_int,
-            );
-            libc::sleep(10);
-            libc::exit(err);
+        Ok(rdinit_content) => Config::new(rdinit_content).unwrap_or_else(|err| {
+            unsafe {
+                libc::printf(
+                    b"Failed to parse configuration: %d\n\0".as_ptr() as *const libc::c_char,
+                    err as libc::c_int,
+                );
+            }
+            exit_error(err);
+            unreachable!()
         }),
-        Err(err) => unsafe {
-            libc::printf(
-                b"Failed to read configuration file: %d\n\0".as_ptr() as *const libc::c_char,
-                err as libc::c_int,
-            );
-            libc::sleep(10);
-            libc::exit(err);
-        },
+        Err(err) => {
+            unsafe {
+                libc::printf(
+                    b"Failed to read configuration file: %d\n\0".as_ptr() as *const libc::c_char,
+                    err as libc::c_int,
+                );
+            }
+            return exit_error(err);
+        }
     };
 
     // TODO: mount proc into /proc as rw so that /proc/cmdline and /proc/mountpoints will be accessible
@@ -312,9 +333,9 @@ fn main() {
                     mount.target(),
                     err as libc::c_int,
                 );
-                libc::sleep(10);
-                libc::exit(err);
             }
+
+            return exit_error(err);
         }
     }
 
@@ -327,20 +348,26 @@ fn main() {
         None => match find_dev_from_mountpoint(atomrootfsinit::SYSROOT) {
             Ok(rootdev) => match rootdev {
                 Some(rootdev) => rootdev,
-                None => unsafe {
-                    libc::printf(b"No root device specified\n\0".as_ptr() as *const libc::c_char);
-                    libc::sleep(10);
-                    libc::exit(libc::ENODEV);
-                },
+                None => {
+                    unsafe {
+                        libc::printf(
+                            b"No root device specified\n\0".as_ptr() as *const libc::c_char
+                        );
+                    }
+
+                    return exit_error(libc::ENODEV);
+                }
             },
-            Err(err) => unsafe {
-                libc::printf(
-                    b"Failed to get root device: %d\n\0".as_ptr() as *const libc::c_char,
-                    err as libc::c_int,
-                );
-                libc::sleep(10);
-                libc::exit(err);
-            },
+            Err(err) => {
+                unsafe {
+                    libc::printf(
+                        b"Failed to get root device: %d\n\0".as_ptr() as *const libc::c_char,
+                        err as libc::c_int,
+                    );
+                };
+
+                return exit_error(err);
+            }
         },
     };
 
@@ -394,10 +421,21 @@ fn main() {
         unreachable!();
     }
 
-    // If we ends up here let the user know about that as this shouldn't happen
+    exit_error(1)
+}
+
+fn exit_error(err: libc::c_int) {
+    if let Err(err) = execute("/bin/bash") {
+        unsafe {
+            libc::printf(
+                b"Failed to execve the recovery/debug software: %d\n\0".as_ptr() as *const libc::c_char,
+                err as libc::c_int,
+            );
+        };
+    }
+
     unsafe {
-        libc::printf(b"An unrecognised error has happened\n\0".as_ptr() as *const libc::c_char);
         libc::sleep(10);
-        libc::exit(1)
+        libc::exit(err)
     }
 }
