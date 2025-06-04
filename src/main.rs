@@ -5,44 +5,25 @@ extern crate libc;
 use atomrootfsinit::{
     change_dir::chdir,
     config::Config,
-    link::create_hardlink,
     mount::{direct_detach, MountFlag, Mountpoint, MountpointFlags},
     string::CStr,
     switch_root::{execute, pivot_root},
 };
 
-fn find_dev_from_mountpoint(mount_point: &str) -> Result<Option<CStr>, libc::c_int> {
-    // Open /proc/mounts to find the device associated with /mnt
-    let mountpoints = atomrootfsinit::read_whole_file("/proc/mounts", 16384)?;
-    let raw_data = mountpoints.split(b'\n', false).unwrap();
-    for mount_entry_line in raw_data.iter() {
-        match core::str::from_utf8(mount_entry_line.as_slice().unwrap()) {
-            Ok(line) => {
-                let parts: Vec<&str> = line.split_whitespace().collect();
-                if parts.len() >= 2 && parts[1] == mount_point {
-                    return Ok(Some(CStr::new(parts[0])?));
-                }
-            }
-            Err(_err) => unsafe {
-                libc::printf(
-                    b"Failed converting mount entry line to utf-8: ignoring the line\n\0".as_ptr()
-                        as *const libc::c_char,
-                );
-            },
-        }
-    }
-
-    Ok(None)
+pub(crate) struct CmdLine {
+    root: Option<CStr>,
+    init: Option<CStr>,
 }
 
-fn read_rootdev() -> Option<CStr> {
+fn read_cmdline() -> Option<CmdLine> {
     match atomrootfsinit::read_whole_file("/proc/cmdline", atomrootfsinit::RDTAB_MAX_FILE_SIZE) {
         Ok(cmdline) => match core::str::from_utf8(cmdline.as_slice().unwrap()) {
             Ok(cmdline_str) => {
-                let mut rootdev = None;
+                let mut root = None;
+                let mut init = None;
                 for param in cmdline_str.split_ascii_whitespace() {
                     if param.starts_with("root=") {
-                        rootdev = Some(CStr::new(&param[5..param.len()]).unwrap_or_else(
+                        root = Some(CStr::new(&param[5..param.len()]).unwrap_or_else(
                             |err| unsafe {
                                 libc::printf(
                                     b"Failed to store root device name: %d\n\0".as_ptr()
@@ -53,12 +34,22 @@ fn read_rootdev() -> Option<CStr> {
                                 libc::exit(err);
                             },
                         ));
-
-                        break;
+                    } else if param.starts_with("init=") {
+                        init = Some(CStr::new(&param[5..param.len()]).unwrap_or_else(
+                            |err| unsafe {
+                                libc::printf(
+                                    b"Failed to store init software path: %d\n\0".as_ptr()
+                                        as *const libc::c_char,
+                                    err as libc::c_int,
+                                );
+                                libc::sleep(10);
+                                libc::exit(err);
+                            },
+                        ));
                     }
                 }
 
-                rootdev
+                Some(CmdLine { root, init })
             }
             Err(_err) => unsafe {
                 libc::printf(
@@ -85,6 +76,10 @@ fn read_rootdev() -> Option<CStr> {
 fn main() {
     const SLASH: &str = "/";
 
+    unsafe {
+        libc::printf(b"\natomrootfsinit started\n\0".as_ptr() as *const libc::c_char);
+    }
+
     /*
      * Work-around for kernel design: the kernel refuses MS_MOVE if any file systems are mounted
      * MS_SHARED. Hence remount them MS_PRIVATE here as a work-around.
@@ -110,7 +105,7 @@ fn main() {
 
         unreachable!()
     })
-    .mount(None)
+    .mount(&None)
     .unwrap_or_else(|err| unsafe {
         libc::printf(
             b"Failed to remount / as private: %d\n\0".as_ptr() as *const libc::c_char,
@@ -243,7 +238,7 @@ fn main() {
 
         unreachable!()
     })
-    .mount(None)
+    .mount(&None)
     .unwrap_or_else(|err| {
         unsafe {
             libc::printf(
@@ -251,40 +246,6 @@ fn main() {
                 err as libc::c_int,
             );
         }
-        exit_error(err);
-
-        unreachable!()
-    });
-
-    let init = (match atomrootfsinit::read_whole_file(
-        atomrootfsinit::RDEXEC_PATH,
-        atomrootfsinit::RDEXEC_MAX_FILE_SIZE,
-    ) {
-        Ok(rdinit_content) => CStr::new(
-            core::str::from_utf8(rdinit_content.as_slice().unwrap_or(&[]))
-                .unwrap_or(atomrootfsinit::SYSTEMD_INIT),
-        ),
-        Err(err) => {
-            #[cfg(debug_assertions)]
-            unsafe {
-                libc::printf(
-                    b"Failed to open the rdinit file: %d -- systemd will be used\n\0".as_ptr()
-                        as *const libc::c_char,
-                    err as libc::c_int,
-                );
-            }
-
-            CStr::new(atomrootfsinit::SYSTEMD_INIT)
-        }
-    })
-    .unwrap_or_else(|err| {
-        unsafe {
-            libc::printf(
-                b"Failed to allocate init: %d\n\0".as_ptr() as *const libc::c_char,
-                err as libc::c_int,
-            );
-        }
-
         exit_error(err);
 
         unreachable!()
@@ -326,7 +287,8 @@ fn main() {
     .unwrap_or_else(|err| {
         unsafe {
             libc::printf(
-                b"Failed to create the mount object for /proc: %d\n\0".as_ptr() as *const libc::c_char,
+                b"Failed to create the mount object for /proc: %d\n\0".as_ptr()
+                    as *const libc::c_char,
                 err as libc::c_int,
             );
         }
@@ -334,7 +296,7 @@ fn main() {
 
         unreachable!()
     })
-    .mount(None)
+    .mount(&None)
     .unwrap_or_else(|err| unsafe {
         libc::printf(
             b"Failed to mount /proc as private: %d\n\0".as_ptr() as *const libc::c_char,
@@ -342,16 +304,54 @@ fn main() {
         );
     });
 
+    let cmdline = read_cmdline();
+
+    let init = (match atomrootfsinit::read_whole_file(
+        atomrootfsinit::RDEXEC_PATH,
+        atomrootfsinit::RDEXEC_MAX_FILE_SIZE,
+    ) {
+        Ok(rdinit_content) => CStr::new(
+            core::str::from_utf8(rdinit_content.as_slice().unwrap_or(&[]))
+                .unwrap_or(atomrootfsinit::DEFAULT_INIT),
+        ),
+        Err(err) => {
+            unsafe {
+                libc::printf(
+                    b"Failed to open the rdinit file: %d -- default will be used\n\0".as_ptr()
+                        as *const libc::c_char,
+                    err as libc::c_int,
+                );
+            }
+
+            match cmdline.as_ref().map_or(None, |a| a.init.clone()) {
+                Some(init) => CStr::new(init.as_str()),
+                None => CStr::new(atomrootfsinit::DEFAULT_INIT)
+            }
+        }
+    })
+    .unwrap_or_else(|err| {
+        unsafe {
+            libc::printf(
+                b"Failed to allocate init: %d\n\0".as_ptr() as *const libc::c_char,
+                err as libc::c_int,
+            );
+        }
+
+        exit_error(err);
+
+        unreachable!()
+    });
+
     for mount in config.iter_mounts() {
         let rootfs = match mount.src() {
             Some(src) => match src {
-                "rootdev" => read_rootdev(),
+                "rootdev" => cmdline.as_ref().map_or(None, |a| a.root.clone()),
                 _ => None,
             },
             None => None,
         };
 
-        if let Err(err) = mount.mount(rootfs) {
+        if let Err(err) = mount.mount(&rootfs) {
             unsafe {
                 libc::printf(
                     b"Failed to mount %s: %d\n\0".as_ptr() as *const libc::c_char,
@@ -367,44 +367,7 @@ fn main() {
     // ensure memory is released before switch_root
     drop(config);
 
-    // link /dev/root to the root device if one is specified in kernel cmdline and proc is mounted
-    let rootdev = match read_rootdev() {
-        Some(rootdev) => rootdev,
-        None => match find_dev_from_mountpoint(atomrootfsinit::SYSROOT) {
-            Ok(rootdev) => match rootdev {
-                Some(rootdev) => rootdev,
-                None => {
-                    unsafe {
-                        libc::printf(
-                            b"No root device specified\n\0".as_ptr() as *const libc::c_char
-                        );
-                    }
-
-                    return exit_error(libc::ENODEV);
-                }
-            },
-            Err(err) => {
-                unsafe {
-                    libc::printf(
-                        b"Failed to get root device: %d\n\0".as_ptr() as *const libc::c_char,
-                        err as libc::c_int,
-                    );
-                };
-
-                return exit_error(err);
-            }
-        },
-    };
-
-    if let Err(err) = create_hardlink("/mnt/dev/root", rootdev.as_str()) {
-        unsafe {
-            libc::printf(
-                b"Failed to create /dev/root link to root device: %d\n\0".as_ptr()
-                    as *const libc::c_char,
-                err as libc::c_int,
-            );
-        }
-    } else if let Err(err) = chdir(atomrootfsinit::SYSROOT) {
+    if let Err(err) = chdir(atomrootfsinit::SYSROOT) {
         unsafe {
             libc::printf(
                 b"Failed to chdir /mnt: %d\n\0".as_ptr() as *const libc::c_char,
@@ -453,7 +416,8 @@ fn exit_error(err: libc::c_int) {
     if let Err(err) = execute("/bin/sh") {
         unsafe {
             libc::printf(
-                b"Failed to execve the recovery/debug software: %d\n\0".as_ptr() as *const libc::c_char,
+                b"Failed to execve the recovery/debug software: %d\n\0".as_ptr()
+                    as *const libc::c_char,
                 err as libc::c_int,
             );
         };

@@ -4,6 +4,12 @@ pub struct CStr {
     data: *const libc::c_char,
 }
 
+impl Clone for CStr {
+    fn clone(&self) -> Self {
+        CStr::try_from(self.as_str().as_bytes()).unwrap()
+    }
+}
+
 impl Drop for CStr {
     fn drop(&mut self) {
         if !self.data.is_null() {

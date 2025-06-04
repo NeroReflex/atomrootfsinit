@@ -200,7 +200,7 @@ impl Mountpoint {
         })
     }
 
-    pub fn mount(&self, rootdev: Option<CStr>) -> Result<(), libc::c_int> {
+    pub fn mount(&self, rootdev: &Option<CStr>) -> Result<(), libc::c_int> {
         let src = match &self.src {
             Some(ptr) => match ptr.as_str() {
                 "rootdev" => match &rootdev {
