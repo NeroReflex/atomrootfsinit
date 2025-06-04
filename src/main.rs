@@ -396,7 +396,7 @@ fn main() {
         },
     };
 
-    if let Err(err) = create_hardlink(rootdev.as_str(), "/dev/root") {
+    if let Err(err) = create_hardlink("/mnt/dev/root", rootdev.as_str()) {
         unsafe {
             libc::printf(
                 b"Failed to create /dev/root link to root device: %d\n\0".as_ptr()
