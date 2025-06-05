@@ -431,6 +431,7 @@ fn main() {
 }
 
 fn exit_error(err: libc::c_int) {
+    #[cfg(feature = "droptosh")]
     if let Err(err) = execute("/bin/sh") {
         unsafe {
             libc::printf(

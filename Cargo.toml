@@ -7,6 +7,10 @@ edition = "2021"
 [dependencies]
 libc = { version = "*", features = [] }
 
+[features]
+default = []
+droptosh = []
+
 [profile.release]
 strip = "debuginfo"
 lto = "thin"
