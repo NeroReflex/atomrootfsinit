@@ -275,7 +275,7 @@ fn main() {
         }
     };
 
-    // mount proc into /proc as rw so that /proc/cmdline and /proc/mountpoints will be accessible
+    // mount proc into /proc as rw so that /proc/cmdline and /proc/mounts will be accessible
     Mountpoint::new(
         Some("proc"),
         "/proc",
@@ -303,6 +303,56 @@ fn main() {
         );
     });
 
+    let initramfs =
+        atomrootfsinit::read_whole_file("/proc/mounts", atomrootfsinit::RDEXEC_MAX_FILE_SIZE)
+            .unwrap_or_else(|err| {
+                unsafe {
+                    libc::printf(
+                        b"Failed to open /proc/mounts: %d\n\0".as_ptr() as *const libc::c_char,
+                        err as libc::c_int,
+                    );
+                }
+
+                exit_error(err);
+
+                unreachable!()
+            })
+            .split(b'\n', false)
+            .unwrap_or_else(|err| {
+                unsafe {
+                    libc::printf(
+                        b"Failed to split /proc/mounts by line: %d\n\0".as_ptr()
+                            as *const libc::c_char,
+                        err as libc::c_int,
+                    );
+                }
+
+                exit_error(err);
+
+                unreachable!()
+            })
+            .iter()
+            .find_map(|raw_line| {
+                let unsplitted_line = core::str::from_utf8(raw_line.as_slice().unwrap()).unwrap();
+
+                let mut dev = "";
+                let mut mount = "";
+                for (idx, mount_component) in unsplitted_line.split(" ").enumerate() {
+                    match idx {
+                        0 => dev = mount_component,
+                        1 => mount = mount_component,
+                        _ => {}
+                    }
+                }
+
+                if mount == "/" {
+                    return Some(dev);
+                }
+
+                None
+            })
+            .map_or(false, |device| device == "rootfs");
+
     let cmdline = read_cmdline();
 
     let init = (match atomrootfsinit::read_whole_file(
@@ -324,7 +374,7 @@ fn main() {
 
             match cmdline.as_ref().map_or(None, |a| a.init.clone()) {
                 Some(init) => CStr::new(init.as_str()),
-                None => CStr::new(atomrootfsinit::DEFAULT_INIT)
+                None => CStr::new(atomrootfsinit::DEFAULT_INIT),
             }
         }
     })
@@ -348,7 +398,7 @@ fn main() {
                 "rootdev" => {
                     rootfs_target = mount.target();
                     cmdline.as_ref().map_or(None, |a| a.root.clone())
-                },
+                }
                 _ => None,
             },
             None => None,
@@ -383,7 +433,7 @@ fn main() {
     // ensure memory is released before switch_root
     drop(config);
 
-    if let Err(err) = switch_root(rootfs_target.as_str(), ".", init.as_str()) {
+    if let Err(err) = switch_root(initramfs, rootfs_target.as_str(), ".", init.as_str()) {
         unsafe {
             libc::printf(
                 b"Failed to switch_root to %s: %d\n\0".as_ptr() as *const libc::c_char,

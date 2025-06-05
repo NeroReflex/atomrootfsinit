@@ -21,6 +21,7 @@ pub enum MountFlag {
     Silent,
     Synchronous,
     Remount,
+    Move,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Default)]
@@ -42,50 +43,15 @@ pub struct MountpointFlags {
     silent: bool,
     synchronous: bool,
     remount: bool,
+    movep: bool,
 }
 
 impl MountpointFlags {
     pub fn new(flags: &[MountFlag]) -> Self {
-        let mut mountpoint_flags = Self {
-            bind: false,
-            shared: false,
-            private: false,
-            slave: false,
-            unbindable: false,
-            recursive: false,
-            dirsync: false,
-            lazytime: false,
-            no_access_time: false,
-            no_dev: false,
-            no_exec: false,
-            no_suid: false,
-            read_only: false,
-            relative_access_time: false,
-            silent: false,
-            synchronous: false,
-            remount: false,
-        };
+        let mut mountpoint_flags = Self::default();
 
         for &flag in flags {
-            match flag {
-                MountFlag::Bind => mountpoint_flags.bind = true,
-                MountFlag::Shared => mountpoint_flags.shared = true,
-                MountFlag::Private => mountpoint_flags.private = true,
-                MountFlag::Slave => mountpoint_flags.slave = true,
-                MountFlag::Unbindable => mountpoint_flags.unbindable = true,
-                MountFlag::Recursive => mountpoint_flags.recursive = true,
-                MountFlag::DirSync => mountpoint_flags.dirsync = true,
-                MountFlag::Lazytime => mountpoint_flags.lazytime = true,
-                MountFlag::NoAccessTime => mountpoint_flags.no_access_time = true,
-                MountFlag::NoDev => mountpoint_flags.no_dev = true,
-                MountFlag::NoExec => mountpoint_flags.no_exec = true,
-                MountFlag::NoSUID => mountpoint_flags.no_suid = true,
-                MountFlag::ReadOnly => mountpoint_flags.read_only = true,
-                MountFlag::RelativeAccessTime => mountpoint_flags.relative_access_time = true,
-                MountFlag::Silent => mountpoint_flags.silent = true,
-                MountFlag::Synchronous => mountpoint_flags.synchronous = true,
-                MountFlag::Remount => mountpoint_flags.remount = true,
-            }
+            mountpoint_flags.set(flag);
         }
 
         mountpoint_flags
@@ -110,6 +76,7 @@ impl MountpointFlags {
             MountFlag::Silent => self.silent = true,
             MountFlag::Synchronous => self.synchronous = true,
             MountFlag::Remount => self.remount = true,
+            MountFlag::Move => self.movep = true,
         }
     }
 
