@@ -98,6 +98,7 @@ impl MountpointFlags {
             | (self.silent as libc::c_ulong * libc::MS_SILENT)
             | (self.synchronous as libc::c_ulong * libc::MS_SYNCHRONOUS)
             | (self.remount as libc::c_ulong * libc::MS_REMOUNT)
+            | (self.movep as libc::c_ulong * libc::MS_MOVE)
     }
 }
 
