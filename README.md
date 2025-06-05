@@ -5,7 +5,7 @@ This tool mounts the rootfs and calls the init program on the mounted system.
 This tool is designed to solve three problems:
 1. systemd expect to be able to write /etc/machine-id before /etc/fstab is even considered
 2. Boot the new rootfs after an update has been written
-3. End the need for an initramfs: initramfs is just a leftover from a long-gone era
+3. End the need for an initramfs: (on embedded devices) initramfs is just a leftover from a long-gone era
 
 ## Why?
 
@@ -21,10 +21,9 @@ Regardless of what happened on the first step the /mnt directory (that you _MUST
 
 The second step is reading the file /mnt/etc/rdtab and mounting everything described in there.
 
-The third step is reading the file /mnt/etc/rdinit: this is the executable that will called as part of the switch_root operation:
-usually this file is systemd.
+The third step is reading the file /mnt/etc/rdinit: this is the executable that will called as part of the switch_root operation: usually this is systemd.
 
-The last step is performing the switch_root operation that will start the real init replacing the current process (keeping the PID number).
+The last step is performing the execve operation that will start the real init replacing the current process (keeping the PID number).
 
 ## Further Exaplaination
 
