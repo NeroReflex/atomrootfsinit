@@ -3,11 +3,10 @@
 extern crate libc;
 
 use atomrootfsinit::{
-    change_dir::chdir,
     config::Config,
-    mount::{direct_detach, MountFlag, Mountpoint, MountpointFlags},
+    mount::{MountFlag, Mountpoint, MountpointFlags},
     string::CStr,
-    switch_root::{execute, pivot_root},
+    switch_root::switch_root,
 };
 
 pub(crate) struct CmdLine {
@@ -384,50 +383,20 @@ fn main() {
     // ensure memory is released before switch_root
     drop(config);
 
-    if let Err(err) = chdir(rootfs_target.as_str()) {
+    if let Err(err) = switch_root(rootfs_target.as_str(), ".", init.as_str()) {
         unsafe {
             libc::printf(
-                b"Failed to chdir to %s: %d\n\0".as_ptr() as *const libc::c_char,
+                b"Failed to switch_root to %s: %d\n\0".as_ptr() as *const libc::c_char,
                 rootfs_target.inner(),
                 err as libc::c_int,
             );
         }
-    } else if let Err(err) = pivot_root(".", ".") {
-        unsafe {
-            libc::printf(
-                b"Failed to pivot root: %d\n\0".as_ptr() as *const libc::c_char,
-                err as libc::c_int,
-            );
-        }
-    } else if let Err(err) = direct_detach(".") {
-        unsafe {
-            libc::printf(
-                b"Failed to umount the old rootfs: %d\n\0".as_ptr() as *const libc::c_char,
-                err as libc::c_int,
-            );
-        }
-    } else if let Err(err) = chdir(SLASH) {
-        unsafe {
-            libc::printf(
-                b"Failed to chdir to the new rootfs: %d\n\0".as_ptr() as *const libc::c_char,
-                err as libc::c_int,
-            );
-        }
-    } else if let Err(err) = execute(init.as_str()) {
-        unsafe {
-            libc::printf(
-                b"Failed to execve the init program %s: %d\n\0".as_ptr() as *const libc::c_char,
-                init.inner(),
-                err as libc::c_int,
-            );
-        }
-    } else {
-        // This point should never be reached as execute calls execve
-        // that replaces the current program with the specified one.
-        unreachable!();
+
+        exit_error(1)
     }
 
-    exit_error(1)
+    // This point is impossible to reach as switch_root calls execve
+    // that replaces the current program with the specified one.
 }
 
 fn exit_error(err: libc::c_int) {

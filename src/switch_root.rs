@@ -1,4 +1,4 @@
-use crate::string::CStr;
+use crate::{change_dir::chdir, mount::direct_detach, string::CStr};
 
 #[cfg(target_arch = "arm")]
 const SYS_PIVOT_ROOT: libc::c_long = 218;
@@ -55,9 +55,59 @@ pub fn execute(program: &str) -> Result<(), libc::c_int> {
  * 
  * @param new_root where the root device is mounted: if "/" is used sys_pivot_root will NOT
  * be performed
- * @param put_old the second parameter for sys_pivot_root
- * @param program the init program to be execve'd on the new root
+ * @param put_old the second parameter for sys_pivot_root: must be expressed relative to new_root
+ * @param program the init program to be execve'd on the new root: must be expressed relative to new_root
  */
 pub fn switch_root(new_root: &str, put_old: &str, program: &str) -> Result<(), libc::c_int> {
-    todo!()
+    match new_root {
+        // follow the switch_root procedure for initramfs
+        "/" => {
+            todo!()
+        },
+        // follow the pivot_root procedure for initrd
+        _ => {
+            if let Err(err) = chdir(new_root) {
+                unsafe {
+                    libc::printf(
+                        b"Failed to chdir to the new rootfs: %d\n\0".as_ptr() as *const libc::c_char,
+                        err as libc::c_int,
+                    );
+                }
+            } else if let Err(err) = pivot_root(".", put_old) {
+                unsafe {
+                    libc::printf(
+                        b"Failed to pivot root: %d\n\0".as_ptr() as *const libc::c_char,
+                        err as libc::c_int,
+                    );
+                }
+            } else if let Err(err) = direct_detach(".") {
+                unsafe {
+                    libc::printf(
+                        b"Failed to umount the old rootfs: %d\n\0".as_ptr() as *const libc::c_char,
+                        err as libc::c_int,
+                    );
+                }
+            } else if let Err(err) = chdir("/") {
+                unsafe {
+                    libc::printf(
+                        b"Failed to chdir to the new rootfs: %d\n\0".as_ptr() as *const libc::c_char,
+                        err as libc::c_int,
+                    );
+                }
+            } else if let Err(err) = execute(program) {
+                unsafe {
+                    libc::printf(
+                        b"Failed to execve the init program: %d\n\0".as_ptr() as *const libc::c_char,
+                        err as libc::c_int,
+                    );
+                }
+            } else {
+                // This point should never be reached as execute calls execve
+                // that replaces the current program with the specified one.
+                unreachable!();
+            }
+        }
+    }
+
+    Ok(())
 }
