@@ -43,3 +43,21 @@ pub fn execute(program: &str) -> Result<(), libc::c_int> {
 
     Ok(())
 }
+
+/**
+ * Function to perform either pivot_root or switch_root depending on the new_root.
+ * 
+ * initrd is a real filesystem (like ext2) and it can be unmounted,
+ * therefore sys_pivot_root syscall is to be used.
+ * 
+ * initramfs is not a real filesystem therefore the new root can be /
+ * and sys_pivot_root cannot be used: remount the root device as / instead.
+ * 
+ * @param new_root where the root device is mounted: if "/" is used sys_pivot_root will NOT
+ * be performed
+ * @param put_old the second parameter for sys_pivot_root
+ * @param program the init program to be execve'd on the new root
+ */
+pub fn switch_root(new_root: &str, put_old: &str, program: &str) -> Result<(), libc::c_int> {
+    todo!()
+}

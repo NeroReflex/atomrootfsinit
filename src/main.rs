@@ -342,10 +342,14 @@ fn main() {
         unreachable!()
     });
 
+    let mut rootfs_target = atomrootfsinit::SYSROOT;
     for mount in config.iter_mounts() {
         let rootfs = match mount.src() {
             Some(src) => match src {
-                "rootdev" => cmdline.as_ref().map_or(None, |a| a.root.clone()),
+                "rootdev" => {
+                    rootfs_target = mount.target();
+                    cmdline.as_ref().map_or(None, |a| a.root.clone())
+                },
                 _ => None,
             },
             None => None,
@@ -364,20 +368,34 @@ fn main() {
         }
     }
 
+    let rootfs_target = CStr::new(rootfs_target).unwrap_or_else(|err| {
+        unsafe {
+            libc::printf(
+                b"Failed to allocate rootfs_target: %d\n\0".as_ptr() as *const libc::c_char,
+                err as libc::c_int,
+            );
+        }
+
+        exit_error(err);
+
+        unreachable!()
+    });
+
     // ensure memory is released before switch_root
     drop(config);
 
-    if let Err(err) = chdir(atomrootfsinit::SYSROOT) {
+    if let Err(err) = chdir(rootfs_target.as_str()) {
         unsafe {
             libc::printf(
-                b"Failed to chdir /mnt: %d\n\0".as_ptr() as *const libc::c_char,
+                b"Failed to chdir to %s: %d\n\0".as_ptr() as *const libc::c_char,
+                rootfs_target.inner(),
                 err as libc::c_int,
             );
         }
     } else if let Err(err) = pivot_root(".", ".") {
         unsafe {
             libc::printf(
-                b"Failed to pivot root to /mnt: %d\n\0".as_ptr() as *const libc::c_char,
+                b"Failed to pivot root: %d\n\0".as_ptr() as *const libc::c_char,
                 err as libc::c_int,
             );
         }
