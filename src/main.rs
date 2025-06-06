@@ -451,7 +451,7 @@ fn main() {
 
 fn exit_error(err: libc::c_int) {
     #[cfg(feature = "droptosh")]
-    if let Err(err) = execute("/bin/sh") {
+    if let Err(err) = atomrootfsinit::switch_root::execute("/bin/sh") {
         unsafe {
             libc::printf(
                 b"Failed to execve the recovery/debug software: %d\n\0".as_ptr()
