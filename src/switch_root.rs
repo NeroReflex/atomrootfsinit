@@ -158,12 +158,21 @@ pub fn switch_root(
     };
 
     if let Err(err) = execute(program) {
-        unsafe {
-            libc::printf(
-                b"Failed to execve the init program: %d\n\0".as_ptr() as *const libc::c_char,
-                err as libc::c_int,
-            );
-        }
+        match CStr::new(program) {
+            Ok(prog_name) => unsafe {
+                libc::printf(
+                    b"Failed to execve the init program %s: %d\n\0".as_ptr() as *const libc::c_char,
+                    prog_name.inner(),
+                    err as libc::c_int,
+                )
+            },
+            Err(_) => unsafe {
+                libc::printf(
+                    b"Failed to execve the init program: %d\n\0".as_ptr() as *const libc::c_char,
+                    err as libc::c_int,
+                )
+            },
+        };
 
         return Err(err)
     }
