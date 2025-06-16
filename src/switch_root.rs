@@ -158,20 +158,24 @@ pub fn switch_root(
     };
 
     if let Err(err) = execute(program) {
-        match CStr::new(program) {
-            Ok(prog_name) => unsafe {
+        let Ok(prog_name) = CStr::new(program) else {
+            unsafe {
                 libc::printf(
-                    b"Failed to execve the init program %s: %d\n\0".as_ptr() as *const libc::c_char,
-                    prog_name.inner(),
+                    b"Failed to execve the init program and also failed to allocate %llu bytes for the program name: %d\n\0".as_ptr() as *const libc::c_char,
+                    program.len() as libc::c_ulonglong,
                     err as libc::c_int,
                 )
-            },
-            Err(_) => unsafe {
-                libc::printf(
-                    b"Failed to execve the init program: %d\n\0".as_ptr() as *const libc::c_char,
-                    err as libc::c_int,
-                )
-            },
+            };
+
+            return Err(err);
+        };
+
+        unsafe {
+            libc::printf(
+                b"Failed to execve the init program %s: %d\n\0".as_ptr() as *const libc::c_char,
+                prog_name.inner(),
+                err as libc::c_int,
+            )
         };
 
         return Err(err)
