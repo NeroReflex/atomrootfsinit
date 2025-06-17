@@ -361,7 +361,8 @@ fn main() {
     ) {
         Ok(rdinit_content) => CStr::new(
             core::str::from_utf8(rdinit_content.as_slice().unwrap_or(&[]))
-                .unwrap_or(atomrootfsinit::DEFAULT_INIT).trim(),
+                .unwrap_or(atomrootfsinit::DEFAULT_INIT)
+                .trim(),
         ),
         Err(err) => {
             unsafe {
@@ -403,6 +404,14 @@ fn main() {
             },
             None => None,
         };
+
+        #[cfg(feature = "trace")]
+        unsafe {
+            libc::printf(
+                b"Mounting %s\n\0".as_ptr() as *const libc::c_char,
+                mount.target()
+            );
+        }
 
         if let Err(err) = mount.mount(&rootfs) {
             unsafe {

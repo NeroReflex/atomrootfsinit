@@ -1,4 +1,8 @@
-use crate::{change_dir::{chdir, chroot}, mount::{direct_detach, MountFlag, Mountpoint, MountpointFlags}, string::CStr};
+use crate::{
+    change_dir::{chdir, chroot},
+    mount::{direct_detach, MountFlag, Mountpoint, MountpointFlags},
+    string::CStr,
+};
 
 #[cfg(target_arch = "arm")]
 const SYS_PIVOT_ROOT: libc::c_long = 218;
@@ -53,7 +57,8 @@ fn initramfs_switch_root(new_root: &str) -> Result<(), libc::c_int> {
         MountpointFlags::new(&[MountFlag::Move]),
         None,
     )?
-    .mount(&None) {
+    .mount(&None)
+    {
         unsafe {
             libc::printf(
                 b"Failed to move mount root: %d\n\0".as_ptr() as *const libc::c_char,
@@ -147,8 +152,18 @@ pub fn switch_root(
             );
         }
 
-        return Err(err)
+        return Err(err);
     }
+
+    #[cfg(feature = "trace")]
+    match initramfs {
+        true => unsafe {
+            libc::printf(b"Using switch_root for initramfs\n\0".as_ptr() as *const libc::c_char)
+        },
+        false => unsafe {
+            libc::printf(b"Using switch_root for initrd: %d\n\0".as_ptr() as *const libc::c_char)
+        },
+    };
 
     match initramfs {
         // follow the switch_root procedure for initramfs
@@ -178,7 +193,7 @@ pub fn switch_root(
             )
         };
 
-        return Err(err)
+        return Err(err);
     }
 
     Ok(())

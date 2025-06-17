@@ -10,6 +10,7 @@ libc = { version = "*", features = [] }
 [features]
 default = []
 droptosh = []
+trace = []
 
 [profile.release]
 strip = "debuginfo"
