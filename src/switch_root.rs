@@ -144,7 +144,10 @@ pub fn switch_root(
     put_old: &str,
     program: &str,
 ) -> Result<(), libc::c_int> {
-    if let Err(err) = chdir(new_root) {
+    if let Err(err) = chdir(match initramfs {
+        true => new_root,
+        false => crate::SYSROOT,
+    }) {
         unsafe {
             libc::printf(
                 b"Failed to chdir to the new rootfs: %d\n\0".as_ptr() as *const libc::c_char,

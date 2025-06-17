@@ -409,7 +409,7 @@ fn main() {
         unsafe {
             libc::printf(
                 b"Mounting %s\n\0".as_ptr() as *const libc::c_char,
-                mount.target()
+                mount.target(),
             );
         }
 
