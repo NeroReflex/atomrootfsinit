@@ -1,8 +1,11 @@
 [package]
 name = "atomrootfsinit"
+description = "Simple rust software to mount filesystems"
+homepage = "https://github.com/NeroReflex/atomrootfsinit"
 authors = ["Denis Benato <benato.denis96@gmail.com>"]
 version = "0.6.11"
 edition = "2021"
+license = "GPL-2.0-or-later"
 
 [dependencies]
 libc = { version = "*", features = [] }
