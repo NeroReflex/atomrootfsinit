@@ -224,6 +224,18 @@ impl Mountpoint {
         }
     }
 
+    pub fn fstype(&self) -> Option<&str> {
+        match &self.fstype {
+            Some(fstype) => Some(unsafe {
+                core::str::from_utf8_unchecked(core::slice::from_raw_parts(
+                    fstype.inner() as *const u8,
+                    fstype.strlen(),
+                ))
+            }),
+            None => None,
+        }
+    }
+
     pub fn data(&self) -> Option<&[u8]> {
         let data_ptr = self.data as *const u8;
         if data_ptr.is_null() || self.data_len == 0 {

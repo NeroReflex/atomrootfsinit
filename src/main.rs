@@ -14,6 +14,356 @@ pub(crate) struct CmdLine {
     init: Option<CStr>,
 }
 
+fn read_partuuid_from_sys(sys_mount: &str, device_name: &str, needle: &str) -> bool {
+    // Try /sys/class/block/{device}/uevent first
+    let mut uevent_path = match atomrootfsinit::vector::Vec::<u8>::with_capacity(
+        sys_mount.len() + 20 + device_name.len() + 7,
+    ) {
+        Ok(v) => v,
+        Err(_) => return false,
+    };
+
+    // Build path: {sys_mount}/class/block/{device_name}/uevent
+    for &b in sys_mount.as_bytes() {
+        if uevent_path.push(b).is_err() {
+            return false;
+        }
+    }
+    for &b in b"/class/block/".iter() {
+        if uevent_path.push(b).is_err() {
+            return false;
+        }
+    }
+    for b in device_name.bytes() {
+        if uevent_path.push(b).is_err() {
+            return false;
+        }
+    }
+    for &b in b"/uevent".iter() {
+        if uevent_path.push(b).is_err() {
+            return false;
+        }
+    }
+
+    let uevent_path_str = match uevent_path.as_slice() {
+        Some(slice) => match core::str::from_utf8(slice) {
+            Ok(s) => s,
+            Err(_) => return false,
+        },
+        None => return false,
+    };
+
+    let uevent_content = match atomrootfsinit::read_whole_file(uevent_path_str, 512) {
+        Ok(content) => content,
+        Err(_) => {
+            // Try alternative path: /sys/block/{disk}/{partition}/uevent
+            // If device_name is like "sda1", try /sys/block/sda/sda1/uevent
+            // Find last non-digit position
+            let mut last_char_pos = device_name.len();
+            for (i, ch) in device_name.char_indices().rev() {
+                if !ch.is_ascii_digit() {
+                    last_char_pos = i + 1;
+                    break;
+                }
+            }
+
+            if last_char_pos < device_name.len() {
+                let disk = &device_name[..last_char_pos];
+                let partition = device_name;
+
+                let mut alt_path = match atomrootfsinit::vector::Vec::<u8>::with_capacity(
+                    sys_mount.len() + 10 + disk.len() + 1 + partition.len() + 7,
+                ) {
+                    Ok(v) => v,
+                    Err(_) => return false,
+                };
+
+                for &b in sys_mount.as_bytes() {
+                    if alt_path.push(b).is_err() {
+                        return false;
+                    }
+                }
+                for &b in b"/block/".iter() {
+                    if alt_path.push(b).is_err() {
+                        return false;
+                    }
+                }
+                for b in disk.bytes() {
+                    if alt_path.push(b).is_err() {
+                        return false;
+                    }
+                }
+                for &b in b"/".iter() {
+                    if alt_path.push(b).is_err() {
+                        return false;
+                    }
+                }
+                for b in partition.bytes() {
+                    if alt_path.push(b).is_err() {
+                        return false;
+                    }
+                }
+                for &b in b"/uevent".iter() {
+                    if alt_path.push(b).is_err() {
+                        return false;
+                    }
+                }
+
+                let alt_path_str = match alt_path.as_slice() {
+                    Some(slice) => match core::str::from_utf8(slice) {
+                        Ok(s) => s,
+                        Err(_) => return false,
+                    },
+                    None => return false,
+                };
+
+                match atomrootfsinit::read_whole_file(alt_path_str, 512) {
+                    Ok(content) => content,
+                    Err(_) => return false,
+                }
+            } else {
+                return false;
+            }
+        }
+    };
+
+    let uevent_str = match uevent_content.as_slice() {
+        Some(slice) => match core::str::from_utf8(slice) {
+            Ok(s) => s,
+            Err(_) => return false,
+        },
+        None => return false,
+    };
+
+    for line in uevent_str.lines() {
+        if let Some(rest) = line.strip_prefix("PARTUUID=") {
+            let trimmed = rest.trim();
+            if !trimmed.is_empty() {
+                return trimmed.eq_ignore_ascii_case(needle);
+            }
+        }
+    }
+
+    false
+}
+
+fn is_block_device(dev_path: &str) -> bool {
+    let path_cstr = match CStr::new(dev_path) {
+        Ok(cstr) => cstr,
+        Err(_) => return false,
+    };
+
+    let mut stat_buf: libc::stat = unsafe { core::mem::zeroed() };
+    let result = unsafe { libc::stat(path_cstr.inner(), &mut stat_buf) };
+
+    if result != 0 {
+        return false;
+    }
+
+    // Check if it's a block device using S_ISBLK macro
+    (stat_buf.st_mode & libc::S_IFMT) == libc::S_IFBLK
+}
+
+fn find_device_by_partuuid(
+    needle: &str,
+    sys_mount: &str,
+    dev_mount: &str,
+) -> Option<atomrootfsinit::vector::Vec<u8>> {
+    // Try /sys/class/block first (or whatever sys is mounted at)
+    if let Ok(mut sys_block_path) =
+        atomrootfsinit::vector::Vec::<u8>::with_capacity(sys_mount.len() + 14)
+    {
+        for &b in sys_mount.as_bytes() {
+            if sys_block_path.push(b).is_err() {
+                break;
+            }
+        }
+        for &b in b"/class/block".iter() {
+            if sys_block_path.push(b).is_err() {
+                break;
+            }
+        }
+
+        if let Some(sys_block_path_slice) = sys_block_path.as_slice() {
+            if let Ok(sys_block_path_str) = core::str::from_utf8(sys_block_path_slice) {
+                if let Ok(sys_block_cstr) = CStr::new(sys_block_path_str) {
+                    let dir = unsafe { libc::opendir(sys_block_cstr.inner()) };
+
+                    if !dir.is_null() {
+                        let mut result: Option<atomrootfsinit::vector::Vec<u8>> = None;
+
+                        loop {
+                            let entry = unsafe { libc::readdir(dir) };
+                            if entry.is_null() {
+                                break;
+                            }
+
+                            let d_name = unsafe { (*entry).d_name.as_ptr() };
+                            let mut name_len = 0;
+                            while unsafe { *d_name.add(name_len) } != 0 {
+                                name_len += 1;
+                            }
+
+                            if name_len == 0 {
+                                continue;
+                            }
+
+                            // Skip . and ..
+                            let first_char = unsafe { *d_name } as u8 as char;
+                            if first_char == '.'
+                                && (name_len == 1 || unsafe { *d_name.add(1) } as u8 as char == '.')
+                            {
+                                continue;
+                            }
+
+                            // Read device name
+                            let device_name_bytes = unsafe {
+                                core::slice::from_raw_parts(d_name as *const u8, name_len)
+                            };
+                            let device_name = match core::str::from_utf8(device_name_bytes) {
+                                Ok(s) => s,
+                                Err(_) => continue,
+                            };
+
+                            // Read PARTUUID from sys and compare
+                            if read_partuuid_from_sys(sys_mount, device_name, needle) {
+                                // Store device name as Vec<u8>
+                                let mut device_name_vec =
+                                    match atomrootfsinit::vector::Vec::<u8>::with_capacity(
+                                        device_name.len(),
+                                    ) {
+                                        Ok(v) => v,
+                                        Err(_) => break,
+                                    };
+                                for b in device_name.bytes() {
+                                    if device_name_vec.push(b).is_err() {
+                                        break;
+                                    }
+                                }
+                                result = Some(device_name_vec);
+                                break;
+                            }
+                        }
+
+                        unsafe {
+                            libc::closedir(dir);
+                        }
+
+                        if result.is_some() {
+                            return result;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Fallback: scan /dev for block devices
+    let dev_mount_cstr = match CStr::new(dev_mount) {
+        Ok(cstr) => cstr,
+        Err(_) => return None,
+    };
+
+    let dev_dir = unsafe { libc::opendir(dev_mount_cstr.inner()) };
+    if dev_dir.is_null() {
+        return None;
+    }
+
+    let mut result: Option<atomrootfsinit::vector::Vec<u8>> = None;
+
+    loop {
+        let entry = unsafe { libc::readdir(dev_dir) };
+        if entry.is_null() {
+            break;
+        }
+
+        let d_name = unsafe { (*entry).d_name.as_ptr() };
+        let mut name_len = 0;
+        while unsafe { *d_name.add(name_len) } != 0 {
+            name_len += 1;
+        }
+
+        if name_len == 0 {
+            continue;
+        }
+
+        // Skip . and ..
+        let first_char = unsafe { *d_name } as u8 as char;
+        if first_char == '.' && (name_len == 1 || unsafe { *d_name.add(1) } as u8 as char == '.') {
+            continue;
+        }
+
+        // Read device name
+        let device_name_bytes =
+            unsafe { core::slice::from_raw_parts(d_name as *const u8, name_len) };
+        let device_name = match core::str::from_utf8(device_name_bytes) {
+            Ok(s) => s,
+            Err(_) => continue,
+        };
+
+        // Build full path in /dev
+        let dev_mount_str = dev_mount_cstr.as_str();
+        let mut full_path = match atomrootfsinit::vector::Vec::<u8>::with_capacity(
+            dev_mount_str.len() + 1 + device_name.len(),
+        ) {
+            Ok(v) => v,
+            Err(_) => continue,
+        };
+
+        for &b in dev_mount_str.as_bytes() {
+            if full_path.push(b).is_err() {
+                continue;
+            }
+        }
+        if !dev_mount_str.ends_with('/') {
+            if full_path.push(b'/').is_err() {
+                continue;
+            }
+        }
+        for b in device_name.bytes() {
+            if full_path.push(b).is_err() {
+                continue;
+            }
+        }
+
+        let full_path_str = match full_path.as_slice() {
+            Some(slice) => match core::str::from_utf8(slice) {
+                Ok(s) => s,
+                Err(_) => continue,
+            },
+            None => continue,
+        };
+
+        // Check if it's a block device
+        if !is_block_device(full_path_str) {
+            continue;
+        }
+
+        // Try to read PARTUUID from sys and compare
+        if read_partuuid_from_sys(sys_mount, device_name, needle) {
+            // Store device name as Vec<u8>
+            let mut device_name_vec =
+                match atomrootfsinit::vector::Vec::<u8>::with_capacity(device_name.len()) {
+                    Ok(v) => v,
+                    Err(_) => break,
+                };
+            for b in device_name.bytes() {
+                if device_name_vec.push(b).is_err() {
+                    break;
+                }
+            }
+            result = Some(device_name_vec);
+            break;
+        }
+    }
+
+    unsafe {
+        libc::closedir(dev_dir);
+    }
+
+    result
+}
+
 fn read_cmdline() -> Option<CmdLine> {
     match atomrootfsinit::read_whole_file("/proc/cmdline", atomrootfsinit::RDTAB_MAX_FILE_SIZE) {
         Ok(cmdline) => match core::str::from_utf8(cmdline.as_slice().unwrap()) {
@@ -392,9 +742,21 @@ fn main() {
         unreachable!()
     });
 
+    // Track where sysfs and devtmpfs are mounted during the mount cycle
+    let mut sys_mount_point: Option<&str> = None;
+    let mut dev_mount_point: Option<&str> = None;
+
     let mut rootfs_target = atomrootfsinit::SYSROOT;
     for mount in config.iter_mounts() {
-        let rootfs = match mount.src() {
+        // Track sysfs and devtmpfs mount points
+        if let Some(fstype) = mount.fstype() {
+            if fstype == "sysfs" {
+                sys_mount_point = Some(mount.target());
+            } else if fstype == "devtmpfs" {
+                dev_mount_point = Some(mount.target());
+            }
+        }
+        let mut rootfs = match mount.src() {
             Some(src) => match src {
                 "rootdev" => {
                     rootfs_target = mount.target();
@@ -404,6 +766,149 @@ fn main() {
             },
             None => None,
         };
+
+        // If rootfs starts with PARTUUID=, find the actual device
+        if let Some(ref rootfs_str) = rootfs {
+            let rootfs_val = rootfs_str.as_str();
+            if rootfs_val.starts_with("PARTUUID=") {
+                let partuuid = &rootfs_val[9..]; // Skip "PARTUUID="
+
+                // Find device in /sys/class/block
+                // Use tracked mount points or fallback to defaults
+                let sys_mount = sys_mount_point.unwrap_or("/sys");
+                let dev_mount = dev_mount_point.unwrap_or("/dev");
+
+                if let Some(device_name_bytes) =
+                    find_device_by_partuuid(partuuid, sys_mount, dev_mount)
+                {
+                    // Build device path using the devtmpfs mount point
+                    let device_name_slice = match device_name_bytes.as_slice() {
+                        Some(s) => s,
+                        None => {
+                            unsafe {
+                                libc::printf(b"Failed to get device name slice\n\0".as_ptr()
+                                    as *const libc::c_char);
+                            }
+                            return exit_error(libc::EINVAL);
+                        }
+                    };
+
+                    // Build device path manually
+                    let prefix_bytes = if dev_mount == "/dev" {
+                        b"/dev/"
+                    } else {
+                        dev_mount.as_bytes()
+                    };
+
+                    let mut device_path_vec = match atomrootfsinit::vector::Vec::<u8>::with_capacity(
+                        prefix_bytes.len() + 1 + device_name_slice.len(),
+                    ) {
+                        Ok(v) => v,
+                        Err(err) => {
+                            unsafe {
+                                libc::printf(
+                                    b"Failed to allocate device path: %d\n\0".as_ptr()
+                                        as *const libc::c_char,
+                                    err as libc::c_int,
+                                );
+                            }
+                            return exit_error(err);
+                        }
+                    };
+
+                    // Copy prefix
+                    for &b in prefix_bytes {
+                        if device_path_vec.push(b).is_err() {
+                            unsafe {
+                                libc::printf(b"Failed to build device path\n\0".as_ptr()
+                                    as *const libc::c_char);
+                            }
+                            return exit_error(libc::ENOMEM);
+                        }
+                    }
+
+                    // Add trailing slash if not /dev/ (and mount point doesn't end with /)
+                    if dev_mount != "/dev" && !dev_mount.ends_with('/') {
+                        if device_path_vec.push(b'/').is_err() {
+                            unsafe {
+                                libc::printf(b"Failed to build device path\n\0".as_ptr()
+                                    as *const libc::c_char);
+                            }
+                            return exit_error(libc::ENOMEM);
+                        }
+                    }
+
+                    // Copy device name
+                    for &b in device_name_slice {
+                        if device_path_vec.push(b).is_err() {
+                            unsafe {
+                                libc::printf(b"Failed to build device path\n\0".as_ptr()
+                                    as *const libc::c_char);
+                            }
+                            return exit_error(libc::ENOMEM);
+                        }
+                    }
+
+                    let device_path_slice = match device_path_vec.as_slice() {
+                        Some(s) => s,
+                        None => {
+                            unsafe {
+                                libc::printf(b"Failed to get device path slice\n\0".as_ptr()
+                                    as *const libc::c_char);
+                            }
+                            return exit_error(libc::EINVAL);
+                        }
+                    };
+
+                    let device_path_str = match core::str::from_utf8(device_path_slice) {
+                        Ok(s) => s,
+                        Err(_) => {
+                            unsafe {
+                                libc::printf(
+                                    b"Failed to convert device path to UTF-8\n\0".as_ptr()
+                                        as *const libc::c_char,
+                                );
+                            }
+                            return exit_error(libc::EINVAL);
+                        }
+                    };
+
+                    rootfs = Some(CStr::new(device_path_str).unwrap_or_else(|err| {
+                        unsafe {
+                            libc::printf(
+                                b"Failed to allocate device path for PARTUUID: %d\n\0".as_ptr()
+                                    as *const libc::c_char,
+                                err as libc::c_int,
+                            );
+                        }
+                        exit_error(err);
+                        unreachable!()
+                    }));
+                } else {
+                    // Create CStr for printf
+                    let partuuid_cstr = CStr::new(partuuid).unwrap_or_else(|err| {
+                        unsafe {
+                            libc::printf(
+                                b"Failed to allocate PARTUUID string for error message: %d\n\0"
+                                    .as_ptr()
+                                    as *const libc::c_char,
+                                err as libc::c_int,
+                            );
+                        }
+                        exit_error(err);
+                        unreachable!()
+                    });
+                    unsafe {
+                        libc::printf(
+                            b"Failed to find device with PARTUUID %s\n\0".as_ptr()
+                                as *const libc::c_char,
+                            partuuid_cstr.inner(),
+                        );
+                    }
+                    return exit_error(libc::ENODEV);
+                }
+            }
+        }
 
         #[cfg(feature = "trace")]
         unsafe {
