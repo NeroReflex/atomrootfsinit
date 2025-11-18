@@ -235,20 +235,18 @@ fn is_block_device(dev_path: &str, log: bool) -> bool {
             let path_cstr = CStr::new(dev_path).unwrap_or_else(|_| {
                 CStr::new("").unwrap()
             });
-            let status = if is_block {
-                "BLOCK DEVICE"
-            } else {
-                "NOT BLOCK DEVICE (skipped)"
-            };
-            let status_cstr = CStr::new(status).unwrap_or_else(|_| {
-                CStr::new("").unwrap()
-            });
-            libc::printf(
-                b"DEBUG: %s: %s (mode: 0x%x)\n\0".as_ptr() as *const libc::c_char,
-                path_cstr.inner(),
-                status_cstr.inner(),
-                stat_buf.st_mode,
-            );
+            if is_block && !path_cstr.as_str().contains("ram") {
+                let status_cstr = CStr::new("BLOCK DEVICE").unwrap_or_else(|_| {
+                    CStr::new("").unwrap()
+                });
+                libc::printf(
+                    b"DEBUG: %s: %s (mode: 0x%x)\n\0".as_ptr() as *const libc::c_char,
+                    path_cstr.inner(),
+                    status_cstr.inner(),
+                    stat_buf.st_mode,
+                );
+            }
+            
         }
     }
     
