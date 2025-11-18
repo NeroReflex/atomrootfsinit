@@ -14,7 +14,7 @@ pub(crate) struct CmdLine {
     init: Option<CStr>,
 }
 
-fn read_partuuid_from_sys(sys_mount: &str, device_name: &str, needle: &str) -> bool {
+fn read_partuuid_from_sys(sys_mount: &str, device_name: &str, needle: &str, print_found: bool) -> bool {
     // Try /sys/class/block/{device}/uevent first
     let mut uevent_path = match atomrootfsinit::vector::Vec::<u8>::with_capacity(
         sys_mount.len() + 20 + device_name.len() + 7,
@@ -139,7 +139,47 @@ fn read_partuuid_from_sys(sys_mount: &str, device_name: &str, needle: &str) -> b
         if let Some(rest) = line.strip_prefix("PARTUUID=") {
             let trimmed = rest.trim();
             if !trimmed.is_empty() {
-                return trimmed.eq_ignore_ascii_case(needle);
+                if print_found {
+                    unsafe {
+                        let partuuid_cstr = CStr::new(trimmed).unwrap_or_else(|_| {
+                            CStr::new("").unwrap()
+                        });
+                        libc::printf(
+                            b"DEBUG: Found PARTUUID %s on device %s\n\0".as_ptr()
+                                as *const libc::c_char,
+                            partuuid_cstr.inner(),
+                        );
+                        let device_cstr = CStr::new(device_name).unwrap_or_else(|_| {
+                            CStr::new("").unwrap()
+                        });
+                        libc::printf(
+                            b"DEBUG:   Device: %s\n\0".as_ptr() as *const libc::c_char,
+                            device_cstr.inner(),
+                        );
+                        let needle_cstr = CStr::new(needle).unwrap_or_else(|_| {
+                            CStr::new("").unwrap()
+                        });
+                        libc::printf(
+                            b"DEBUG:   Looking for: %s\n\0".as_ptr() as *const libc::c_char,
+                            needle_cstr.inner(),
+                        );
+                        let matches = if trimmed.eq_ignore_ascii_case(needle) {
+                            "MATCH"
+                        } else {
+                            "NO MATCH"
+                        };
+                        let match_cstr = CStr::new(matches).unwrap_or_else(|_| {
+                            CStr::new("").unwrap()
+                        });
+                        libc::printf(
+                            b"DEBUG:   Result: %s\n\0".as_ptr() as *const libc::c_char,
+                            match_cstr.inner(),
+                        );
+                    }
+                }
+                if trimmed.eq_ignore_ascii_case(needle) {
+                    return true;
+                }
             }
         }
     }
@@ -147,21 +187,72 @@ fn read_partuuid_from_sys(sys_mount: &str, device_name: &str, needle: &str) -> b
     false
 }
 
-fn is_block_device(dev_path: &str) -> bool {
+fn is_block_device(dev_path: &str, log: bool) -> bool {
     let path_cstr = match CStr::new(dev_path) {
         Ok(cstr) => cstr,
-        Err(_) => return false,
+        Err(_) => {
+            if log {
+                unsafe {
+                    let path_cstr = CStr::new(dev_path).unwrap_or_else(|_| {
+                        CStr::new("").unwrap()
+                    });
+                    libc::printf(
+                        b"DEBUG: Failed to create CStr for %s\n\0".as_ptr()
+                            as *const libc::c_char,
+                        path_cstr.inner(),
+                    );
+                }
+            }
+            return false;
+        }
     };
 
     let mut stat_buf: libc::stat = unsafe { core::mem::zeroed() };
     let result = unsafe { libc::stat(path_cstr.inner(), &mut stat_buf) };
 
     if result != 0 {
+        if log {
+            unsafe {
+                let path_cstr = CStr::new(dev_path).unwrap_or_else(|_| {
+                    CStr::new("").unwrap()
+                });
+                libc::printf(
+                    b"DEBUG: stat failed for %s: errno %d\n\0".as_ptr()
+                        as *const libc::c_char,
+                    path_cstr.inner(),
+                    *libc::__errno_location(),
+                );
+            }
+        }
         return false;
     }
 
     // Check if it's a block device using S_ISBLK macro
-    (stat_buf.st_mode & libc::S_IFMT) == libc::S_IFBLK
+    let is_block = (stat_buf.st_mode & libc::S_IFMT) == libc::S_IFBLK;
+    
+    if log {
+        unsafe {
+            let path_cstr = CStr::new(dev_path).unwrap_or_else(|_| {
+                CStr::new("").unwrap()
+            });
+            let status = if is_block {
+                "BLOCK DEVICE"
+            } else {
+                "NOT BLOCK DEVICE (skipped)"
+            };
+            let status_cstr = CStr::new(status).unwrap_or_else(|_| {
+                CStr::new("").unwrap()
+            });
+            libc::printf(
+                b"DEBUG: %s: %s (mode: 0x%x)\n\0".as_ptr() as *const libc::c_char,
+                path_cstr.inner(),
+                status_cstr.inner(),
+                stat_buf.st_mode,
+            );
+        }
+    }
+    
+    is_block
 }
 
 fn find_device_by_partuuid(
@@ -169,6 +260,30 @@ fn find_device_by_partuuid(
     sys_mount: &str,
     dev_mount: &str,
 ) -> Option<atomrootfsinit::vector::Vec<u8>> {
+    unsafe {
+        let needle_cstr = CStr::new(needle).unwrap_or_else(|_| {
+            CStr::new("").unwrap()
+        });
+        libc::printf(
+            b"\nDEBUG: Searching for PARTUUID: %s\n\0".as_ptr() as *const libc::c_char,
+            needle_cstr.inner(),
+        );
+        let sys_cstr = CStr::new(sys_mount).unwrap_or_else(|_| {
+            CStr::new("").unwrap()
+        });
+        libc::printf(
+            b"DEBUG: sysfs mounted at: %s\n\0".as_ptr() as *const libc::c_char,
+            sys_cstr.inner(),
+        );
+        let dev_cstr = CStr::new(dev_mount).unwrap_or_else(|_| {
+            CStr::new("").unwrap()
+        });
+        libc::printf(
+            b"DEBUG: devtmpfs mounted at: %s\n\0".as_ptr() as *const libc::c_char,
+            dev_cstr.inner(),
+        );
+    }
+
     // Try /sys/class/block first (or whatever sys is mounted at)
     if let Ok(mut sys_block_path) =
         atomrootfsinit::vector::Vec::<u8>::with_capacity(sys_mount.len() + 14)
@@ -186,6 +301,16 @@ fn find_device_by_partuuid(
 
         if let Some(sys_block_path_slice) = sys_block_path.as_slice() {
             if let Ok(sys_block_path_str) = core::str::from_utf8(sys_block_path_slice) {
+                unsafe {
+                    let path_cstr = CStr::new(sys_block_path_str).unwrap_or_else(|_| {
+                        CStr::new("").unwrap()
+                    });
+                    libc::printf(
+                        b"DEBUG: Scanning %s\n\0".as_ptr() as *const libc::c_char,
+                        path_cstr.inner(),
+                    );
+                }
+                
                 if let Ok(sys_block_cstr) = CStr::new(sys_block_path_str) {
                     let dir = unsafe { libc::opendir(sys_block_cstr.inner()) };
 
@@ -225,8 +350,19 @@ fn find_device_by_partuuid(
                                 Err(_) => continue,
                             };
 
+                            unsafe {
+                                let device_cstr = CStr::new(device_name).unwrap_or_else(|_| {
+                                    CStr::new("").unwrap()
+                                });
+                                libc::printf(
+                                    b"DEBUG: Checking device: %s\n\0".as_ptr()
+                                        as *const libc::c_char,
+                                    device_cstr.inner(),
+                                );
+                            }
+
                             // Read PARTUUID from sys and compare
-                            if read_partuuid_from_sys(sys_mount, device_name, needle) {
+                            if read_partuuid_from_sys(sys_mount, device_name, needle, true) {
                                 // Store device name as Vec<u8>
                                 let mut device_name_vec =
                                     match atomrootfsinit::vector::Vec::<u8>::with_capacity(
@@ -240,6 +376,16 @@ fn find_device_by_partuuid(
                                         break;
                                     }
                                 }
+                                unsafe {
+                                    let device_cstr = CStr::new(device_name).unwrap_or_else(|_| {
+                                        CStr::new("").unwrap()
+                                    });
+                                    libc::printf(
+                                        b"DEBUG: MATCH FOUND! Device: %s\n\0".as_ptr()
+                                            as *const libc::c_char,
+                                        device_cstr.inner(),
+                                    );
+                                }
                                 result = Some(device_name_vec);
                                 break;
                             }
@@ -252,6 +398,20 @@ fn find_device_by_partuuid(
                         if result.is_some() {
                             return result;
                         }
+                        
+                        unsafe {
+                            libc::printf(
+                                b"DEBUG: No match found in /sys/class/block, trying /dev scan\n\0"
+                                    .as_ptr() as *const libc::c_char,
+                            );
+                        }
+                    } else {
+                        unsafe {
+                            libc::printf(
+                                b"DEBUG: Failed to open /sys/class/block, trying /dev scan\n\0"
+                                    .as_ptr() as *const libc::c_char,
+                            );
+                        }
                     }
                 }
             }
@@ -259,17 +419,44 @@ fn find_device_by_partuuid(
     }
 
     // Fallback: scan /dev for block devices
+    unsafe {
+        let dev_cstr = CStr::new(dev_mount).unwrap_or_else(|_| {
+            CStr::new("").unwrap()
+        });
+        libc::printf(
+            b"DEBUG: Scanning %s for block devices\n\0".as_ptr() as *const libc::c_char,
+            dev_cstr.inner(),
+        );
+    }
+
     let dev_mount_cstr = match CStr::new(dev_mount) {
         Ok(cstr) => cstr,
-        Err(_) => return None,
+        Err(_) => {
+            unsafe {
+                libc::printf(
+                    b"DEBUG: Failed to create CStr for dev_mount\n\0".as_ptr()
+                        as *const libc::c_char,
+                );
+            }
+            return None;
+        }
     };
 
     let dev_dir = unsafe { libc::opendir(dev_mount_cstr.inner()) };
     if dev_dir.is_null() {
+        unsafe {
+            libc::printf(
+                b"DEBUG: Failed to open dev directory, errno %d\n\0".as_ptr()
+                    as *const libc::c_char,
+                *libc::__errno_location(),
+            );
+        }
         return None;
     }
 
     let mut result: Option<atomrootfsinit::vector::Vec<u8>> = None;
+    let mut checked_count = 0;
+    let mut block_count = 0;
 
     loop {
         let entry = unsafe { libc::readdir(dev_dir) };
@@ -300,6 +487,8 @@ fn find_device_by_partuuid(
             Ok(s) => s,
             Err(_) => continue,
         };
+
+        checked_count += 1;
 
         // Build full path in /dev
         let dev_mount_str = dev_mount_cstr.as_str();
@@ -335,12 +524,24 @@ fn find_device_by_partuuid(
         };
 
         // Check if it's a block device
-        if !is_block_device(full_path_str) {
+        if !is_block_device(full_path_str, true) {
             continue;
         }
 
+        block_count += 1;
+
+        unsafe {
+            let device_cstr = CStr::new(device_name).unwrap_or_else(|_| {
+                CStr::new("").unwrap()
+            });
+            libc::printf(
+                b"DEBUG: Checking block device: %s\n\0".as_ptr() as *const libc::c_char,
+                device_cstr.inner(),
+            );
+        }
+
         // Try to read PARTUUID from sys and compare
-        if read_partuuid_from_sys(sys_mount, device_name, needle) {
+        if read_partuuid_from_sys(sys_mount, device_name, needle, true) {
             // Store device name as Vec<u8>
             let mut device_name_vec =
                 match atomrootfsinit::vector::Vec::<u8>::with_capacity(device_name.len()) {
@@ -352,6 +553,15 @@ fn find_device_by_partuuid(
                     break;
                 }
             }
+            unsafe {
+                let device_cstr = CStr::new(device_name).unwrap_or_else(|_| {
+                    CStr::new("").unwrap()
+                });
+                libc::printf(
+                    b"DEBUG: MATCH FOUND! Device: %s\n\0".as_ptr() as *const libc::c_char,
+                    device_cstr.inner(),
+                );
+            }
             result = Some(device_name_vec);
             break;
         }
@@ -359,6 +569,19 @@ fn find_device_by_partuuid(
 
     unsafe {
         libc::closedir(dev_dir);
+        libc::printf(
+            b"DEBUG: Scanned %d entries, found %d block devices\n\0".as_ptr()
+                as *const libc::c_char,
+            checked_count,
+            block_count,
+        );
+        if result.is_none() {
+            libc::printf(
+                b"DEBUG: No matching device found for PARTUUID %s\n\0".as_ptr()
+                    as *const libc::c_char,
+                CStr::new(needle).unwrap_or_else(|_| CStr::new("").unwrap()).inner(),
+            );
+        }
     }
 
     result
