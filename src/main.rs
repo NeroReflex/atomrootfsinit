@@ -419,7 +419,7 @@ fn main() {
                     libc::printf(
                         b"Failed to mount %s from %s: %d\n\0".as_ptr() as *const libc::c_char,
                         mount.target(),
-                        rootfs.inner() as *const libc::c_char,
+                        rootfs.as_str(),
                         err as libc::c_int,
                     );
                 },
