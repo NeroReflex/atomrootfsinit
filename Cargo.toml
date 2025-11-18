@@ -3,7 +3,7 @@ name = "atomrootfsinit"
 description = "Simple rust software to mount filesystems"
 homepage = "https://github.com/NeroReflex/atomrootfsinit"
 authors = ["Denis Benato <benato.denis96@gmail.com>"]
-version = "0.6.15"
+version = "0.6.16"
 edition = "2021"
 license = "GPL-2.0-or-later"
 
