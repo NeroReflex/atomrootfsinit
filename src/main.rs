@@ -418,15 +418,15 @@ fn main() {
                 Some(rootfs) => unsafe {
                     libc::printf(
                         b"Failed to mount %s from %s: %d\n\0".as_ptr() as *const libc::c_char,
-                        mount.target(),
-                        rootfs.as_str(),
+                        mount.target().as_ptr() as *const libc::c_char,
+                        rootfs.as_str().as_ptr() as *const libc::c_char,
                         err as libc::c_int,
                     );
                 },
                 None => unsafe {
                     libc::printf(
                         b"Failed to mount %s: %d\n\0".as_ptr() as *const libc::c_char,
-                        mount.target(),
+                        mount.target().as_ptr() as *const libc::c_char,
                         err as libc::c_int,
                     );
                 },
