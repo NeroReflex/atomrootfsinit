@@ -129,7 +129,7 @@ impl Config {
         Ok(Self { mounts })
     }
 
-    pub fn iter_mounts(&self) -> crate::vector::VecIter<Mountpoint> {
+    pub fn iter_mounts(&'_ self) -> crate::vector::VecIter<'_, Mountpoint> {
         self.mounts.iter()
     }
 }

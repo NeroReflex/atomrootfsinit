@@ -159,7 +159,7 @@ impl<'a, T> Iterator for VecIter<'a, T> {
 }
 
 impl<T> Vec<T> {
-    pub fn iter(&self) -> VecIter<T> {
+    pub fn iter(&'_ self) -> VecIter<'_, T> {
         VecIter {
             vec: self,
             index: 0,
