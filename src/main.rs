@@ -414,12 +414,22 @@ fn main() {
         }
 
         if let Err(err) = mount.mount(&rootfs) {
-            unsafe {
-                libc::printf(
-                    b"Failed to mount %s: %d\n\0".as_ptr() as *const libc::c_char,
-                    mount.target(),
-                    err as libc::c_int,
-                );
+            match &rootfs {
+                Some(rootfs) => unsafe {
+                    libc::printf(
+                        b"Failed to mount %s from %s: %d\n\0".as_ptr() as *const libc::c_char,
+                        mount.target(),
+                        rootfs.inner() as *const libc::c_char,
+                        err as libc::c_int,
+                    );
+                },
+                None => unsafe {
+                    libc::printf(
+                        b"Failed to mount %s: %d\n\0".as_ptr() as *const libc::c_char,
+                        mount.target(),
+                        err as libc::c_int,
+                    );
+                },
             }
 
             return exit_error(err);
