@@ -60,7 +60,23 @@ fn read_partuuid_from_sys(
 
     let uevent_content = match atomrootfsinit::read_whole_file(uevent_path_str, 512) {
         Ok(content) => content,
-        Err(_) => {
+        Err(err) => {
+            if print_found {
+                unsafe {
+                    let path_cstr =
+                        CStr::new(uevent_path_str).unwrap_or_else(|_| CStr::new("").unwrap());
+                    let device_cstr =
+                        CStr::new(device_name).unwrap_or_else(|_| CStr::new("").unwrap());
+                    libc::printf(
+                        b"DEBUG: Failed to read %s for device %s (errno %d), trying alternative path\n\0"
+                            .as_ptr()
+                            as *const libc::c_char,
+                        path_cstr.inner(),
+                        device_cstr.inner(),
+                        err as libc::c_int,
+                    );
+                }
+            }
             // Try alternative path: {sys_mount}/block/{disk}/{partition}/uevent
             // If device_name is like "sda1", try {sys_mount}/block/sda/sda1/uevent
             // Find last non-digit position
@@ -122,11 +138,53 @@ fn read_partuuid_from_sys(
                     None => return false,
                 };
 
+                if print_found {
+                    unsafe {
+                        let alt_path_cstr =
+                            CStr::new(alt_path_str).unwrap_or_else(|_| CStr::new("").unwrap());
+                        libc::printf(
+                            b"DEBUG: Trying alternative path %s\n\0".as_ptr()
+                                as *const libc::c_char,
+                            alt_path_cstr.inner(),
+                        );
+                    }
+                }
+
                 match atomrootfsinit::read_whole_file(alt_path_str, 512) {
                     Ok(content) => content,
-                    Err(_) => return false,
+                    Err(err) => {
+                        if print_found {
+                            unsafe {
+                                let alt_path_cstr = CStr::new(alt_path_str)
+                                    .unwrap_or_else(|_| CStr::new("").unwrap());
+                                let device_cstr = CStr::new(device_name)
+                                    .unwrap_or_else(|_| CStr::new("").unwrap());
+                                libc::printf(
+                                    b"DEBUG: Failed to read alternative path %s for device %s (errno %d)\n\0"
+                                        .as_ptr()
+                                        as *const libc::c_char,
+                                    alt_path_cstr.inner(),
+                                    device_cstr.inner(),
+                                    err as libc::c_int,
+                                );
+                            }
+                        }
+                        return false;
+                    }
                 }
             } else {
+                if print_found {
+                    unsafe {
+                        let device_cstr =
+                            CStr::new(device_name).unwrap_or_else(|_| CStr::new("").unwrap());
+                        libc::printf(
+                            b"DEBUG: Device %s has no numeric suffix, cannot construct alternative path\n\0"
+                                .as_ptr()
+                                as *const libc::c_char,
+                            device_cstr.inner(),
+                        );
+                    }
+                }
                 return false;
             }
         }
@@ -185,6 +243,9 @@ fn read_partuuid_from_sys(
         }
     }
 
+    // No PARTUUID found - this is expected for most devices (only partitions have PARTUUIDs)
+    // Don't log this as it creates too much noise
+
     false
 }
 
@@ -223,25 +284,7 @@ fn is_block_device(dev_path: &str, log: bool) -> bool {
     }
 
     // Check if it's a block device using S_ISBLK macro
-    let is_block = (stat_buf.st_mode & libc::S_IFMT) == libc::S_IFBLK;
-
-    if log {
-        unsafe {
-            let path_cstr = CStr::new(dev_path).unwrap_or_else(|_| CStr::new("").unwrap());
-            if is_block && !path_cstr.as_str().contains("ram") {
-                let status_cstr =
-                    CStr::new("BLOCK DEVICE").unwrap_or_else(|_| CStr::new("").unwrap());
-                libc::printf(
-                    b"DEBUG: %s: %s (mode: 0x%x)\n\0".as_ptr() as *const libc::c_char,
-                    path_cstr.inner(),
-                    status_cstr.inner(),
-                    stat_buf.st_mode,
-                );
-            }
-        }
-    }
-
-    is_block
+    (stat_buf.st_mode & libc::S_IFMT) == libc::S_IFBLK
 }
 
 fn find_device_by_partuuid(
@@ -284,11 +327,106 @@ fn find_device_by_partuuid(
 
         if let Some(sys_block_path_slice) = sys_block_path.as_slice() {
             if let Ok(sys_block_path_str) = core::str::from_utf8(sys_block_path_slice) {
+                // First, check if sysfs root exists and what's in it
+                let sys_root_cstr = match CStr::new(sys_mount) {
+                    Ok(cstr) => cstr,
+                    Err(_) => {
+                        unsafe {
+                            libc::printf(
+                                b"DEBUG: Failed to create CStr for sys_mount root\n\0".as_ptr()
+                                    as *const libc::c_char,
+                            );
+                        }
+                        // Continue to try opening class/block anyway
+                        return None;
+                    }
+                };
+
+                let sys_root_dir = unsafe { libc::opendir(sys_root_cstr.inner()) };
+                if !sys_root_dir.is_null() {
+                    unsafe {
+                        libc::printf(
+                            b"DEBUG: Contents of %s:\n\0".as_ptr() as *const libc::c_char,
+                            sys_root_cstr.inner(),
+                        );
+                    }
+                    let mut entry_count = 0;
+                    loop {
+                        let entry = unsafe { libc::readdir(sys_root_dir) };
+                        if entry.is_null() {
+                            break;
+                        }
+                        let d_name = unsafe { (*entry).d_name.as_ptr() };
+                        let mut name_len = 0;
+                        while unsafe { *d_name.add(name_len) } != 0 {
+                            name_len += 1;
+                        }
+                        if name_len == 0 {
+                            continue;
+                        }
+                        let first_char = unsafe { *d_name } as u8 as char;
+                        if first_char == '.'
+                            && (name_len == 1 || unsafe { *d_name.add(1) } as u8 as char == '.')
+                        {
+                            continue;
+                        }
+                        entry_count += 1;
+                        let name_bytes =
+                            unsafe { core::slice::from_raw_parts(d_name as *const u8, name_len) };
+                        if let Ok(name_str) = core::str::from_utf8(name_bytes) {
+                            unsafe {
+                                let name_cstr =
+                                    CStr::new(name_str).unwrap_or_else(|_| CStr::new("").unwrap());
+                                libc::printf(
+                                    b"DEBUG:   %s\n\0".as_ptr() as *const libc::c_char,
+                                    name_cstr.inner(),
+                                );
+                            }
+                        }
+                    }
+                    unsafe {
+                        libc::closedir(sys_root_dir);
+                        libc::printf(
+                            b"DEBUG: Found %d entries in %s\n\0".as_ptr() as *const libc::c_char,
+                            entry_count,
+                            sys_root_cstr.inner(),
+                        );
+                    }
+                } else {
+                    unsafe {
+                        libc::printf(
+                            b"DEBUG: Failed to open sysfs root %s, errno %d\n\0".as_ptr()
+                                as *const libc::c_char,
+                            sys_root_cstr.inner(),
+                            *libc::__errno_location(),
+                        );
+                    }
+                }
+
                 if let Ok(sys_block_cstr) = CStr::new(sys_block_path_str) {
+                    unsafe {
+                        let path_cstr = CStr::new(sys_block_path_str)
+                            .unwrap_or_else(|_| CStr::new("").unwrap());
+                        libc::printf(
+                            b"DEBUG: Attempting to open %s\n\0".as_ptr() as *const libc::c_char,
+                            path_cstr.inner(),
+                        );
+                    }
+
                     let dir = unsafe { libc::opendir(sys_block_cstr.inner()) };
 
                     if !dir.is_null() {
+                        unsafe {
+                            libc::printf(
+                                b"DEBUG: Successfully opened %s\n\0".as_ptr()
+                                    as *const libc::c_char,
+                                CStr::new(sys_block_path_str)
+                                    .unwrap_or_else(|_| CStr::new("").unwrap())
+                                    .inner(),
+                            );
+                        }
                         let mut result: Option<atomrootfsinit::vector::Vec<u8>> = None;
+                        let mut device_count = 0;
 
                         loop {
                             let entry = unsafe { libc::readdir(dir) };
@@ -314,6 +452,8 @@ fn find_device_by_partuuid(
                                 continue;
                             }
 
+                            device_count += 1;
+
                             // Read device name
                             let device_name_bytes = unsafe {
                                 core::slice::from_raw_parts(d_name as *const u8, name_len)
@@ -322,6 +462,16 @@ fn find_device_by_partuuid(
                                 Ok(s) => s,
                                 Err(_) => continue,
                             };
+
+                            unsafe {
+                                let device_cstr = CStr::new(device_name)
+                                    .unwrap_or_else(|_| CStr::new("").unwrap());
+                                libc::printf(
+                                    b"DEBUG: Checking device %s from /class/block\n\0".as_ptr()
+                                        as *const libc::c_char,
+                                    device_cstr.inner(),
+                                );
+                            }
 
                             // Read PARTUUID from sys and compare
                             if read_partuuid_from_sys(sys_mount, device_name, needle, true) {
@@ -354,6 +504,233 @@ fn find_device_by_partuuid(
 
                         unsafe {
                             libc::closedir(dir);
+                            let path_cstr = CStr::new(sys_block_path_str)
+                                .unwrap_or_else(|_| CStr::new("").unwrap());
+                            libc::printf(
+                                b"DEBUG: Scanned %d devices in %s\n\0".as_ptr()
+                                    as *const libc::c_char,
+                                device_count,
+                                path_cstr.inner(),
+                            );
+                            if device_count == 0 {
+                                libc::printf(
+                                    b"ERROR: /class/block directory is empty! No block devices found in sysfs.\n\0"
+                                        .as_ptr()
+                                        as *const libc::c_char,
+                                );
+                            }
+                        }
+
+                        if result.is_some() {
+                            return result;
+                        }
+
+                        unsafe {
+                            let path_cstr = CStr::new(sys_block_path_str)
+                                .unwrap_or_else(|_| CStr::new("").unwrap());
+                            let dev_cstr =
+                                CStr::new(dev_mount).unwrap_or_else(|_| CStr::new("").unwrap());
+                            libc::printf(
+                                b"DEBUG: No match found in %s (directory was empty or no matching PARTUUID), trying %s scan\n\0".as_ptr()
+                                    as *const libc::c_char,
+                                path_cstr.inner(),
+                                dev_cstr.inner(),
+                            );
+                        }
+                    } else {
+                        unsafe {
+                            let path_cstr = CStr::new(sys_block_path_str)
+                                .unwrap_or_else(|_| CStr::new("").unwrap());
+                            let dev_cstr =
+                                CStr::new(dev_mount).unwrap_or_else(|_| CStr::new("").unwrap());
+                            libc::printf(
+                                b"DEBUG: Failed to open %s (errno %d), trying %s scan\n\0".as_ptr()
+                                    as *const libc::c_char,
+                                path_cstr.inner(),
+                                *libc::__errno_location(),
+                                dev_cstr.inner(),
+                            );
+
+                            // Try /block as alternative (some initramfs systems might not have /class/block)
+                            if let Ok(mut block_path) =
+                                atomrootfsinit::vector::Vec::<u8>::with_capacity(
+                                    sys_mount.len() + 7,
+                                )
+                            {
+                                for &b in sys_mount.as_bytes() {
+                                    if block_path.push(b).is_err() {
+                                        break;
+                                    }
+                                }
+                                for &b in b"/block".iter() {
+                                    if block_path.push(b).is_err() {
+                                        break;
+                                    }
+                                }
+
+                                if let Some(block_path_slice) = block_path.as_slice() {
+                                    if let Ok(block_path_str) =
+                                        core::str::from_utf8(block_path_slice)
+                                    {
+                                        let block_path_cstr = CStr::new(block_path_str);
+                                        if let Ok(block_cstr) = block_path_cstr {
+                                            let block_dir = libc::opendir(block_cstr.inner());
+                                            if !block_dir.is_null() {
+                                                let block_path_cstr_for_print =
+                                                    CStr::new(block_path_str)
+                                                        .unwrap_or_else(|_| CStr::new("").unwrap());
+                                                libc::printf(
+                                                    b"DEBUG: Found alternative %s directory, will try that in fallback\n\0".as_ptr()
+                                                        as *const libc::c_char,
+                                                    block_path_cstr_for_print.inner(),
+                                                );
+                                                libc::closedir(block_dir);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Alternative: try {sys_mount}/block directly (kernel creates /sys/block for block devices)
+    if let Ok(mut sys_block_path) =
+        atomrootfsinit::vector::Vec::<u8>::with_capacity(sys_mount.len() + 7)
+    {
+        for &b in sys_mount.as_bytes() {
+            if sys_block_path.push(b).is_err() {
+                break;
+            }
+        }
+        for &b in b"/block".iter() {
+            if sys_block_path.push(b).is_err() {
+                break;
+            }
+        }
+
+        if let Some(sys_block_path_slice) = sys_block_path.as_slice() {
+            if let Ok(sys_block_path_str) = core::str::from_utf8(sys_block_path_slice) {
+                if let Ok(sys_block_cstr) = CStr::new(sys_block_path_str) {
+                    unsafe {
+                        let path_cstr = CStr::new(sys_block_path_str)
+                            .unwrap_or_else(|_| CStr::new("").unwrap());
+                        libc::printf(
+                            b"DEBUG: Trying alternative path %s\n\0".as_ptr()
+                                as *const libc::c_char,
+                            path_cstr.inner(),
+                        );
+                    }
+
+                    let dir = unsafe { libc::opendir(sys_block_cstr.inner()) };
+
+                    if !dir.is_null() {
+                        unsafe {
+                            libc::printf(
+                                b"DEBUG: Successfully opened %s\n\0".as_ptr()
+                                    as *const libc::c_char,
+                                CStr::new(sys_block_path_str)
+                                    .unwrap_or_else(|_| CStr::new("").unwrap())
+                                    .inner(),
+                            );
+                        }
+                        let mut result: Option<atomrootfsinit::vector::Vec<u8>> = None;
+                        let mut device_count = 0;
+
+                        loop {
+                            let entry = unsafe { libc::readdir(dir) };
+                            if entry.is_null() {
+                                break;
+                            }
+
+                            let d_name = unsafe { (*entry).d_name.as_ptr() };
+                            let mut name_len = 0;
+                            while unsafe { *d_name.add(name_len) } != 0 {
+                                name_len += 1;
+                            }
+
+                            if name_len == 0 {
+                                continue;
+                            }
+
+                            // Skip . and ..
+                            let first_char = unsafe { *d_name } as u8 as char;
+                            if first_char == '.'
+                                && (name_len == 1 || unsafe { *d_name.add(1) } as u8 as char == '.')
+                            {
+                                continue;
+                            }
+
+                            device_count += 1;
+
+                            // Read device name
+                            let device_name_bytes = unsafe {
+                                core::slice::from_raw_parts(d_name as *const u8, name_len)
+                            };
+                            let device_name = match core::str::from_utf8(device_name_bytes) {
+                                Ok(s) => s,
+                                Err(_) => continue,
+                            };
+
+                            unsafe {
+                                let device_cstr = CStr::new(device_name)
+                                    .unwrap_or_else(|_| CStr::new("").unwrap());
+                                libc::printf(
+                                    b"DEBUG: Checking device %s from /block\n\0".as_ptr()
+                                        as *const libc::c_char,
+                                    device_cstr.inner(),
+                                );
+                            }
+
+                            // Read PARTUUID from sys and compare
+                            if read_partuuid_from_sys(sys_mount, device_name, needle, true) {
+                                // Store device name as Vec<u8>
+                                let mut device_name_vec =
+                                    match atomrootfsinit::vector::Vec::<u8>::with_capacity(
+                                        device_name.len(),
+                                    ) {
+                                        Ok(v) => v,
+                                        Err(_) => break,
+                                    };
+                                for b in device_name.bytes() {
+                                    if device_name_vec.push(b).is_err() {
+                                        break;
+                                    }
+                                }
+                                unsafe {
+                                    let device_cstr = CStr::new(device_name)
+                                        .unwrap_or_else(|_| CStr::new("").unwrap());
+                                    libc::printf(
+                                        b"DEBUG: MATCH FOUND! Device: %s\n\0".as_ptr()
+                                            as *const libc::c_char,
+                                        device_cstr.inner(),
+                                    );
+                                }
+                                result = Some(device_name_vec);
+                                break;
+                            }
+                        }
+
+                        unsafe {
+                            libc::closedir(dir);
+                            let path_cstr = CStr::new(sys_block_path_str)
+                                .unwrap_or_else(|_| CStr::new("").unwrap());
+                            libc::printf(
+                                b"DEBUG: Scanned %d devices in %s\n\0".as_ptr()
+                                    as *const libc::c_char,
+                                device_count,
+                                path_cstr.inner(),
+                            );
+                            if device_count == 0 {
+                                libc::printf(
+                                    b"ERROR: /block directory is empty! No block devices found in sysfs.\n\0"
+                                        .as_ptr()
+                                        as *const libc::c_char,
+                                );
+                            }
                         }
 
                         if result.is_some() {
@@ -379,9 +756,10 @@ fn find_device_by_partuuid(
                             let dev_cstr =
                                 CStr::new(dev_mount).unwrap_or_else(|_| CStr::new("").unwrap());
                             libc::printf(
-                                b"DEBUG: Failed to open %s, trying %s scan\n\0".as_ptr()
+                                b"DEBUG: Failed to open %s (errno %d), trying %s scan\n\0".as_ptr()
                                     as *const libc::c_char,
                                 path_cstr.inner(),
+                                *libc::__errno_location(),
                                 dev_cstr.inner(),
                             );
                         }
@@ -493,7 +871,10 @@ fn find_device_by_partuuid(
         };
 
         // Check if it's a block device
-        if !is_block_device(full_path_str, true) || full_path_str.contains("ram") {
+        if !is_block_device(full_path_str, true)
+            || full_path_str.contains("ram")
+            || full_path_str.contains("loop")
+        {
             continue;
         }
 
@@ -502,7 +883,8 @@ fn find_device_by_partuuid(
         unsafe {
             let device_cstr = CStr::new(device_name).unwrap_or_else(|_| CStr::new("").unwrap());
             libc::printf(
-                b"DEBUG: Checking block device: %s\n\0".as_ptr() as *const libc::c_char,
+                b"DEBUG: Checking block device %s from /dev scan\n\0".as_ptr()
+                    as *const libc::c_char,
                 device_cstr.inner(),
             );
         }

@@ -46,3 +46,7 @@ In the first two cases you will need to:
 In case of a btrfs partition:
 - You write the rootfs in a subvolume, get its ID and change the default subvolume of rootfs, also uupdating the kernel with the rest of the system
 - You can use btrfs send and receive instead of unpacking a .tar rootfs
+
+# Requirements
+atomrootfsinit supports root=PARTUUID=00000000000000000000 only when the commit 758737d86f8a2d74c0fa9f8b2523fa7fd1e0d0aa is present:
+the patch is available in the file block-add-partition-uuid-into-uevent.patch
