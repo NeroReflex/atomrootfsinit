@@ -1,0 +1,21 @@
+# Minimal system: mount sysfs/devtmpfs/root and tmpfs for /run
+sysfs      /sys     sysfs    rw                               0 0
+devtmpfs   /dev     devtmpfs rw,nosuid,noexec                 0 0
+rootdev    /        ext4     rw,nodev,noexec                  0 1
+tmpfs      /run     tmpfs    rw,nodev,nosuid,size=64M         0 0
+proc       /proc    proc     rw,nosuid,nodev,noexec           0 0
+
+# Btrfs subvolume rollout: mount the resolved root under /mnt then bind into /
+sysfs      /sys     sysfs    rw                               0 0
+devtmpfs   /dev     devtmpfs rw,nosuid,noexec                 0 0
+rootdev    /mnt     btrfs    rw,subvol=@deployments/v2        0 0
+/mnt       /        none     bind                             0 0
+tmpfs      /run     tmpfs    rw,nodev,nosuid,size=128M,mode=755 0 0
+
+# Dedicated boot partition keeps modules and firmware for every deployment
+sysfs          /sys       sysfs     rw                         0 0
+devtmpfs       /dev       devtmpfs  rw,nosuid,noexec           0 0
+/dev/mmcblk0p3 /          ext4      ro                         0 1
+/dev/mmcblk0p2 /lib/modules ext4    ro,nosuid,nodev,noexec     0 2
+tmpfs          /run       tmpfs     rw,nodev,nosuid,size=32M   0 0
+
