@@ -361,7 +361,6 @@ fn find_device_by_partuuid(
                 let sys_root_dir = unsafe { libc::opendir(sys_root_cstr.inner()) };
                 if !sys_root_dir.is_null() {
                     #[cfg(debug_assertions)]
-                    #[cfg(debug_assertions)]
                     {
                         debug_printf!(
                             b"Contents of %s:\n\0".as_ptr() as *const libc::c_char,
