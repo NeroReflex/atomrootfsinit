@@ -7,7 +7,7 @@ License:        GPLv2
 URL:            https://github.com/neroreflex/atomrootfsinit
 BuildRequires:  cargo, gcc, clang, pkgconfig, make
 # Provide explicit runtime Requires to avoid empty macro expansion in some rpmbuild setups
-Requires:       
+Recommends:     systemd
 
 %description
 atomrootfsinit is an init service that mounts the root filesystem and transfer control over some other init.
